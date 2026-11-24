@@ -41,6 +41,8 @@ Administration (root):
 
 Firefox:
   firefox-setup --user              install the native messaging manifest for you
+  firefox-policy install [--strict] (root) Firefox policy that stops HTTPS-record
+                                    lookups outside the proxy (README "Firefox")
 
 Other:
   version
@@ -75,6 +77,8 @@ func main() {
 		_, err = client.Call(control.Request{Type: "reload"})
 	case "firefox-setup":
 		err = cmdFirefoxSetup(args)
+	case "firefox-policy":
+		err = cmdFirefoxPolicy(args)
 	case "version", "--version":
 		fmt.Println(version)
 	case "help", "-h", "--help":

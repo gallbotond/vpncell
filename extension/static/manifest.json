@@ -1,0 +1,16 @@
+{
+  "manifest_version": 2,
+  "name": "vpncell",
+  "version": "0.1.0",
+  "description": "Send each Multi-Account Container through its own VPN profile (vpncell). Mapped containers never fall back to a direct connection.",
+  "browser_specific_settings": {
+    "gecko": { "id": "vpncell@gallbotond.github.io", "strict_min_version": "128.0" }
+  },
+  "permissions": [
+    "proxy", "contextualIdentities", "cookies", "storage", "nativeMessaging",
+    "webRequest", "webRequestBlocking", "privacy", "notifications", "<all_urls>"
+  ],
+  "background": { "scripts": ["background.js"], "type": "module", "persistent": true },
+  "browser_action": { "default_popup": "popup.html", "default_title": "vpncell", "default_icon": "icon.svg" },
+  "icons": { "48": "icon.svg", "96": "icon.svg" }
+}

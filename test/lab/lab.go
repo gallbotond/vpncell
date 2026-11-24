@@ -16,6 +16,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -183,6 +184,13 @@ func (s *Server) setupServices() error {
 		s.lab.httpLog[s.Name] = append(s.lab.httpLog[s.Name], host+" "+r.Host+" "+r.URL.Path)
 		s.lab.mu.Unlock()
 		w.Header().Set("Cache-Control", "no-store")
+		if r.URL.Path == "/webrtc" {
+			// WebRTC leak probe: gathers ICE candidates with a public STUN
+			// server and lists them.
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			io.WriteString(w, webrtcPage)
+			return
+		}
 		if r.URL.Path == "/ip" {
 			fmt.Fprintln(w, host)
 			return
@@ -216,6 +224,12 @@ func (s *Server) serveDNS(w dns.ResponseWriter, req *dns.Msg) {
 		switch {
 		case (name == "web.lab.test." || name == "web.") && q.Qtype == dns.TypeA:
 			m.Answer = append(m.Answer, &dns.A{Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 5}, A: s.SvcIP.AsSlice()})
+		case strings.HasSuffix(name, ".ok.lab.test."):
+			// Any name under ok.lab.test resolves (lets tests use marker
+			// names that work inside the profile).
+			if q.Qtype == dns.TypeA {
+				m.Answer = append(m.Answer, &dns.A{Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 5}, A: s.SvcIP.AsSlice()})
+			}
 		case name == "svc.lab.test." && q.Qtype == dns.TypeA:
 			m.Answer = append(m.Answer, &dns.A{Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 5}, A: net.ParseIP("10.99.0.10")})
 		case name == "svc6.lab.test." && q.Qtype == dns.TypeAAAA:
@@ -371,3 +385,13 @@ func Cleanup() {
 }
 
 var _ = context.Background
+
+const webrtcPage = `<!doctype html><title>webrtc probe</title><body><pre id="c">pending</pre><script>
+const out = [];
+const pc = new RTCPeerConnection({iceServers: [{urls: "stun:stun.l.google.com:19302"}]});
+pc.createDataChannel("x");
+const done = () => { document.getElementById("c").textContent = "DONE\n" + (out.join("\n") || "no-candidates"); };
+pc.onicecandidate = (e) => { if (e.candidate && e.candidate.candidate) out.push(e.candidate.candidate); else done(); };
+pc.createOffer().then((o) => pc.setLocalDescription(o)).catch((e) => { out.push("error " + e); done(); });
+setTimeout(done, 8000);
+</script></body>`

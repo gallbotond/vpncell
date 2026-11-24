@@ -271,7 +271,11 @@ func (s *Server) handle(c net.Conn) {
 	if host != "" {
 		addrs, err = res.Lookup(ctx, host)
 		if err != nil || len(addrs) == 0 {
-			reply(c, repHostUnreachable, nil)
+			// Not "host unreachable": Firefox treats that reply as a DNS
+			// failure and then looks the name up itself, through the host
+			// resolver (a DNS leak, found by the browser tests). A general
+			// failure is reported as a proxy error and nothing else happens.
+			reply(c, repGeneralFailure, nil)
 			return
 		}
 	} else {
@@ -279,7 +283,15 @@ func (s *Server) handle(c net.Conn) {
 	}
 	out, err := dialRace(ctx, f, addrs, port)
 	if err != nil {
-		reply(c, errCode(err), nil)
+		code := errCode(err)
+		if host != "" {
+			// For named targets Firefox treats some replies (host
+			// unreachable) as a DNS failure and then resolves the name
+			// itself through the host resolver. Report every failure as a
+			// general failure instead.
+			code = repGeneralFailure
+		}
+		reply(c, code, nil)
 		return
 	}
 	defer out.Close()

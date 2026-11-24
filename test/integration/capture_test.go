@@ -3,16 +3,19 @@
 package integration
 
 import (
+	"bufio"
 	"bytes"
-	"context"
+	"encoding/binary"
 	"fmt"
+	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // Leak capture on the host's physical interface (DESIGN.md §15.3, with the
@@ -23,11 +26,13 @@ import (
 // port other than the VPN ports.
 
 type capture struct {
-	t      testing.TB
-	iface  string
-	file   string
-	cmd    *exec.Cmd
-	cancel context.CancelFunc
+	t       testing.TB
+	iface   string
+	file    string
+	fd      int
+	done    chan struct{}
+	stopReq chan struct{}
+	stopped bool
 }
 
 func physicalIface(t testing.TB) string {
@@ -43,10 +48,9 @@ func physicalIface(t testing.TB) string {
 }
 
 // tailscalePorts returns the local UDP ports owned by tailscaled.
-func tailscalePorts() []string {
+func tailscalePorts() map[uint16]bool {
 	out, _ := run("", "ss", "-Hulpn")
-	var ports []string
-	seen := map[string]bool{}
+	ports := map[uint16]bool{}
 	for _, line := range strings.Split(out, "\n") {
 		if !strings.Contains(line, "tailscaled") {
 			continue
@@ -56,57 +60,121 @@ func tailscalePorts() []string {
 			continue
 		}
 		local := f[3]
-		p := local[strings.LastIndex(local, ":")+1:]
-		if p != "" && p != "*" && !seen[p] {
-			seen[p] = true
-			ports = append(ports, p)
+		var p uint16
+		if _, err := fmt.Sscanf(local[strings.LastIndex(local, ":")+1:], "%d", &p); err == nil && p != 0 {
+			ports[p] = true
 		}
 	}
 	return ports
 }
 
+func htons(v uint16) uint16 { return v<<8 | v>>8 }
+
+// udpPorts returns the UDP source and destination ports of an Ethernet
+// frame, if it is IPv4/IPv6 UDP without extension headers.
+func udpPorts(fr []byte) (uint16, uint16, bool) {
+	if len(fr) < 14 {
+		return 0, 0, false
+	}
+	et := binary.BigEndian.Uint16(fr[12:14])
+	p := fr[14:]
+	switch et {
+	case 0x0800:
+		if len(p) < 20 || p[9] != 17 {
+			return 0, 0, false
+		}
+		ihl := int(p[0]&0x0f) * 4
+		if len(p) < ihl+4 {
+			return 0, 0, false
+		}
+		return binary.BigEndian.Uint16(p[ihl:]), binary.BigEndian.Uint16(p[ihl+2:]), true
+	case 0x86dd:
+		if len(p) < 44 || p[6] != 17 {
+			return 0, 0, false
+		}
+		return binary.BigEndian.Uint16(p[40:]), binary.BigEndian.Uint16(p[42:]), true
+	}
+	return 0, 0, false
+}
+
+// startCapture captures every frame on the physical interface (both
+// directions) into a pcap file, from an AF_PACKET socket in this process.
+// Frames to or from tailscaled's UDP ports are left out; nothing else is.
+// (tcpdump is not used for capturing: its AppArmor profile refuses signals
+// from the confined session that runs the tests, so it could not be stopped.)
 func startCapture(t testing.TB) *capture {
 	t.Helper()
 	iface := physicalIface(t)
+	ifi, err := net.InterfaceByName(iface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW|unix.SOCK_CLOEXEC, int(htons(unix.ETH_P_ALL)))
+	if err != nil {
+		t.Fatalf("packet socket: %v", err)
+	}
+	if err := unix.Bind(fd, &unix.SockaddrLinklayer{Protocol: htons(unix.ETH_P_ALL), Ifindex: ifi.Index}); err != nil {
+		t.Fatalf("bind packet socket: %v", err)
+	}
+	unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, 8<<20)
+	unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &unix.Timeval{Usec: 100000})
 	dir, _ := os.MkdirTemp("", "vpncell-cap-")
 	file := filepath.Join(dir, "cap.pcap")
-	filter := ""
-	if ps := tailscalePorts(); len(ps) > 0 {
-		var parts []string
-		for _, p := range ps {
-			parts = append(parts, "udp port "+p)
+	f, err := os.Create(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := bufio.NewWriter(f)
+	hdr := make([]byte, 24)
+	binary.LittleEndian.PutUint32(hdr[0:], 0xa1b2c3d4)
+	binary.LittleEndian.PutUint16(hdr[4:], 2)
+	binary.LittleEndian.PutUint16(hdr[6:], 4)
+	binary.LittleEndian.PutUint32(hdr[16:], 262144)
+	binary.LittleEndian.PutUint32(hdr[20:], 1) // Ethernet
+	w.Write(hdr)
+	ts := tailscalePorts()
+	c := &capture{t: t, iface: iface, file: file, fd: fd, done: make(chan struct{}), stopReq: make(chan struct{})}
+	go func() {
+		defer close(c.done)
+		defer f.Close()
+		defer w.Flush()
+		buf := make([]byte, 262144)
+		rec := make([]byte, 16)
+		for {
+			select {
+			case <-c.stopReq:
+				return
+			default:
+			}
+			n, _, err := unix.Recvfrom(fd, buf, 0)
+			if err != nil {
+				continue // timeout: check for stop
+			}
+			if sp, dp, ok := udpPorts(buf[:n]); ok && (ts[sp] || ts[dp]) {
+				continue
+			}
+			now := time.Now()
+			binary.LittleEndian.PutUint32(rec[0:], uint32(now.Unix()))
+			binary.LittleEndian.PutUint32(rec[4:], uint32(now.Nanosecond()/1000))
+			binary.LittleEndian.PutUint32(rec[8:], uint32(n))
+			binary.LittleEndian.PutUint32(rec[12:], uint32(n))
+			w.Write(rec)
+			w.Write(buf[:n])
 		}
-		filter = "not (" + strings.Join(parts, " or ") + ")"
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	args := []string{"-i", iface, "-n", "-U", "-s", "0", "-Z", "root", "-w", file}
-	if filter != "" {
-		args = append(args, filter)
-	}
-	cmd := exec.CommandContext(ctx, "tcpdump", args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("tcpdump: %v", err)
-	}
-	// Wait until tcpdump listens.
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) && !strings.Contains(stderr.String(), "listening on") {
-		time.Sleep(50 * time.Millisecond)
-	}
-	return &capture{t: t, iface: iface, file: file, cmd: cmd, cancel: cancel}
+	}()
+	t.Cleanup(c.stop)
+	return c
 }
 
 func (c *capture) stop() {
-	time.Sleep(500 * time.Millisecond)
-	c.cmd.Process.Signal(os.Interrupt)
-	done := make(chan struct{})
-	go func() { c.cmd.Wait(); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		c.cancel()
+	if c.stopped {
+		return
 	}
+	c.stopped = true
+	time.Sleep(500 * time.Millisecond)
+	close(c.stopReq)
+	<-c.done
+	unix.Close(c.fd)
 }
 
 // count returns the number of captured packets matching a pcap filter.
@@ -116,6 +184,10 @@ func (c *capture) count(filter string) (int, string) {
 	var sample []string
 	for _, l := range strings.Split(out, "\n") {
 		if strings.TrimSpace(l) == "" || strings.HasPrefix(l, "reading from") {
+			continue
+		}
+		if strings.HasPrefix(l, "tcpdump:") {
+			c.t.Errorf("capture file problem: %s", l)
 			continue
 		}
 		lines++
@@ -133,7 +205,29 @@ func (c *capture) containsMarker(marker string) bool {
 	if err != nil {
 		c.t.Fatalf("read capture: %v", err)
 	}
-	return bytes.Contains(data, []byte(marker))
+	if !bytes.Contains(data, []byte(marker)) {
+		return false
+	}
+	// Show the packets that carry it.
+	out, _ := run("", "tcpdump", "-n", "-r", c.file, "-A", "-s", "0")
+	var pkt []string
+	var hits []string
+	flush := func() {
+		if len(pkt) > 0 && strings.Contains(strings.Join(pkt, ""), marker) && len(hits) < 5 {
+			hits = append(hits, pkt[0])
+		}
+	}
+	for _, l := range strings.Split(out, "\n") {
+		if len(l) > 15 && l[2] == ':' && l[5] == ':' {
+			flush()
+			pkt = []string{l}
+		} else {
+			pkt = append(pkt, l)
+		}
+	}
+	flush()
+	c.t.Logf("packets with marker %s:\n%s", marker, strings.Join(hits, "\n"))
+	return true
 }
 
 // assertNoLeaks checks the standard leak conditions.

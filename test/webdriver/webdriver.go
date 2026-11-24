@@ -75,11 +75,11 @@ func New(base string, firefoxOptions map[string]any) (*Session, error) {
 		SessionID string `json:"sessionId"`
 	}
 	caps := map[string]any{"capabilities": map[string]any{"alwaysMatch": map[string]any{
-		"browserName":        "firefox",
+		"browserName":         "firefox",
 		"acceptInsecureCerts": true,
-		"pageLoadStrategy":   "normal",
-		"moz:firefoxOptions": firefoxOptions,
-		"timeouts":           map[string]any{"pageLoad": 45000, "script": 30000},
+		"pageLoadStrategy":    "normal",
+		"moz:firefoxOptions":  firefoxOptions,
+		"timeouts":            map[string]any{"pageLoad": 45000, "script": 30000},
 	}}}
 	if err := s.do("POST", "/session", caps, &out); err != nil {
 		return nil, err
