@@ -1,0 +1,6 @@
+# vpncell global settings. Profiles live in /etc/vpncell/profiles.d/<name>.toml
+# (create them with `sudo vpncell import NAME FILE`).
+
+# SOCKS ports for the Firefox extension are allocated once per profile from
+# this range and kept. Keep it below 1024 (only root can bind there).
+socks_port_range = "700-799"

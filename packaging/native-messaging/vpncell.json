@@ -1,0 +1,7 @@
+{
+  "name": "vpncell",
+  "description": "vpncell native messaging host",
+  "path": "/usr/lib/vpncell/vpncell-native",
+  "type": "stdio",
+  "allowed_extensions": ["vpncell@gallbotond.github.io"]
+}
