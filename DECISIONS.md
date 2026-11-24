@@ -49,9 +49,17 @@ prompt, this file wins.
 
 ## Test VPN servers
 
-- The user has VPN servers on a **Google Cloud VM** and will give the session
-  access to it. Details are **pending**: inspect the VM once access is given
-  and decide from what is there.
+- The user has VPN servers, and test services behind them, on a **Google Cloud
+  VM**. Reach it from this host with:
+
+  ```bash
+  gcloud compute ssh --zone "us-east1-b" "free-vm" --tunnel-through-iap --project "free-vm-1792444052"
+  ```
+
+  (VM `free-vm`, zone `us-east1-b`, project `free-vm-1792444052`, SSH through
+  IAP.) Inspect the VM before designing the tests, and decide from what is
+  there: which VPN servers run, which networks and services are behind them,
+  and whether the overlapping setup below already exists.
 - The required tests still apply in full: overlapping `10.99.0.0/24` behind two
   profiles, WireGuard and OpenVPN, and mixed setups. If the VM does not provide
   what a test needs, say exactly what is missing and ask before changing the
