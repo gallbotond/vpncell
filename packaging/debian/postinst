@@ -7,6 +7,18 @@ configure)
 	install -d -m 0755 /etc/vpncell/profiles.d
 	install -d -m 0700 /etc/vpncell/secrets
 	install -d -m 0700 /var/lib/vpncell
+	# Firefox policy against the HTTPS-First DNS lookup outside the proxy
+	# (README "Firefox"). Installed once; if the admin removes it with
+	# `vpncell firefox-policy remove`, upgrades do not add it again. A purge
+	# forgets that choice.
+	if [ ! -e /var/lib/vpncell/firefox-policy-installed ]; then
+		if /usr/bin/vpncell firefox-policy install >/dev/null; then
+			touch /var/lib/vpncell/firefox-policy-installed
+			echo "vpncell: Firefox policy installed in /etc/firefox/policies/policies.json (restart Firefox)"
+		else
+			echo "vpncell: could not install the Firefox policy; see README \"Firefox\"" >&2
+		fi
+	fi
 	if [ -d /run/systemd/system ]; then
 		systemctl daemon-reload >/dev/null 2>&1 || true
 		# NetworkManager: never manage tunnel devices (they exist briefly in

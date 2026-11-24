@@ -12,6 +12,9 @@ remove|deconfigure)
 		systemctl clean --what=fdstore vpncelld.service >/dev/null 2>&1 || true
 	fi
 	/usr/sbin/vpncelld teardown || true
+	# Take vpncell's entries out of the Firefox policy (others stay).
+	/usr/bin/vpncell firefox-policy remove >/dev/null 2>&1 || true
+	rm -f /var/lib/vpncell/firefox-policy-installed
 	;;
 esac
 exit 0

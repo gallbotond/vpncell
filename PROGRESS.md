@@ -42,16 +42,9 @@ TestVMSocks, TestNoSecretsInJournal. OpenVPN and mixed sets: step 5.
 
 ## Open problems (need the user)
 
-1. **Firefox HTTPS-First DNS leak** — policy installed on this host at the
-   user's request (see Final report); open: package default. With Firefox's
-   defaults, `http://` navigations in a mapped container make Firefox look
-   up the HTTPS DNS record through the host resolver (DESIGN.md §12 item
-   26). Fix: `sudo vpncell firefox-policy install` (locks
-   `network.dns.native_https_query=false`; `--strict` also turns
-   HTTPS-First off for DoH users). Installing a system-wide Firefox policy
-   was refused by the session's safety policy, so it is the user's call
-   (and whether the .deb should install it by default). Until then
-   `TestBrowserHTTPNameNoHostDNS` is a KNOWN FAILURE.
+1. **Firefox HTTPS-First DNS leak** — resolved: the package installs the
+   vpncell Firefox policy by default (user's decision, 2026-11-24; DESIGN.md
+   §12 item 26). `TestBrowserHTTPNameNoHostDNS` passes.
 2. **Snap Firefox portal permission.** Grant once (dialog, or the `gdbus`
    command in README "Snap Firefox"). Until then all snap browser tests are
    KNOWN FAILURES; the tarball (deb-equivalent) Firefox passes them.
@@ -77,7 +70,7 @@ AF_PACKET in the test binary.
 | 1. Daemon + WireGuard + namespace | [#1](https://github.com/gallbotond/vpncell/pull/1) | all step tests pass |
 | 2. Terminal sessions | [#2](https://github.com/gallbotond/vpncell/pull/2) | all pass |
 | 3. SOCKS5 proxy | [#3](https://github.com/gallbotond/vpncell/pull/3) | all pass (25 tests) |
-| 4. Native host + Firefox extension | [#4](https://github.com/gallbotond/vpncell/pull/4) | tarball Firefox passes; 2 known failures (snap portal permission; HTTPS-First DNS lookup without the policy) |
+| 4. Native host + Firefox extension | [#4](https://github.com/gallbotond/vpncell/pull/4) | tarball Firefox passes; 2 known failures at the time (snap portal permission; HTTPS-First DNS lookup without the policy — since fixed by the policy, [#7](https://github.com/gallbotond/vpncell/pull/7)) |
 | 5. OpenVPN backend | [#5](https://github.com/gallbotond/vpncell/pull/5) | all scenarios pass with WireGuard, OpenVPN and mixed sets; same 2 known failures |
 | 6. Packaging, README | [#6](https://github.com/gallbotond/vpncell/pull/6) | lifecycle test passes; full suite against the installed .deb passes except the 2 known failures |
 
@@ -104,12 +97,10 @@ All are in README "Known limitations". The ones that matter most:
 
 ### What I need from you
 
-1. ~~Decide on the Firefox policy~~ **Done (2026-11-24):** at the user's
-   request, `sudo vpncell firefox-policy install` was run on this host
-   (`network.dns.native_https_query=false`, locked; HTTPS-First stays on).
-   `TestBrowserHTTPNameNoHostDNS` now passes against the installed package.
-   Still open: whether the `.deb` should install the policy by default
-   (it does not today).
+1. ~~Decide on the Firefox policy~~ **Done (2026-11-24):** the `.deb`
+   installs it by default (first install; an admin opt-out survives
+   upgrades; removal takes it out). `TestBrowserHTTPNameNoHostDNS` and
+   `TestPackageUpgradeAndRemove` pass against the package.
 2. **Allow the snap Firefox once** to start the native host (portal
    dialog, or the `gdbus … SetPermission webextensions true vpncell
    snap.firefox "['yes']"` command in README "Snap Firefox"); then rerun

@@ -63,8 +63,8 @@ every namespace, tunnel device, SOCKS listener and runtime file, and the
 native messaging manifests (system-wide and the per-user copies written by
 `vpncell firefox-setup --user`). Profiles stay in `/etc/vpncell`.
 `sudo apt purge vpncell` also removes `/etc/vpncell`, `/var/lib/vpncell`
-and the `vpncell` group. If you installed the Firefox policy, remove it
-first with `sudo vpncell firefox-policy remove`.
+and the `vpncell` group. Removal also takes vpncell's entries out of the
+Firefox policy file.
 
 You must be in the `vpncell` group to talk to the daemon, and listed in the
 profile's `[access]` section (`import` adds the user who ran `sudo`).
@@ -235,31 +235,29 @@ names are resolved inside the profile (`proxyDNS`).
   `127.0.0.0/8`, `[::1]`) are cancelled: Firefox never sends loopback
   addresses through a proxy, so they would otherwise go to the host.
 
-### Required: the vpncell Firefox policy
+### The vpncell Firefox policy (installed by the package)
 
 With Firefox's default settings, opening an `http://` address in a mapped
 container makes Firefox (its HTTPS-First mode) look up the site's HTTPS DNS
 record **itself, through the host's resolver**, outside the proxy. The
 hostname then leaves through your normal connection (a DNS leak). This
 happens for public and private names; `https://` addresses are not
-affected. An extension cannot change the prefs involved, so vpncell ships a
-Firefox enterprise policy:
-
-```bash
-sudo vpncell firefox-policy install
-```
+affected. An extension cannot change the prefs involved, so the package
+installs a Firefox enterprise policy when it is first installed (the same
+as running `sudo vpncell firefox-policy install`).
 
 It adds `network.dns.native_https_query = false` (locked) to
 `/etc/firefox/policies/policies.json`, keeping any other policies in that
 file; restart Firefox afterwards. HTTPS-First stays on. If you use
 DNS-over-HTTPS in Firefox, use `install --strict`, which also turns
 HTTPS-First off (otherwise the lookup goes to your DoH server).
-`sudo vpncell firefox-policy remove` takes the entries out again. The
-policy applies to every Firefox profile on the machine (deb, tarball and
-snap builds read this file).
+The policy applies to every Firefox profile on the machine (deb, tarball
+and snap builds read this file) and to all tabs, not only containers.
 
-**This is not installed automatically** (it changes Firefox for all tabs);
-without it, the leak above is a known limitation.
+To opt out, run `sudo vpncell firefox-policy remove`; upgrades keep that
+choice (they do not add the policy again). Without the policy the leak
+above is back. Removing the package takes vpncell's entries out of the file
+and keeps any other policies in it.
 
 ### Snap Firefox
 
@@ -283,7 +281,7 @@ gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore --object
 | Startup (tabs restored before the mapping is loaded) | The listener waits for the stored mapping and briefly for the daemon; a mapped container is never answered "direct". |
 | `network.proxy.failover_direct` | Tested: with the daemon stopped and with the tunnel removed, mapped containers show an error page and the capture shows no direct packet. |
 | DNS for proxied requests, DNS-over-HTTPS | `proxyDNS: true`: the SOCKS server resolves inside the profile. With TRR-only mode, lab names still load in containers. A failed lookup is reported to Firefox as a general proxy failure, because "host unreachable" makes Firefox retry the name through the host resolver. |
-| HTTPS-First's HTTPS-record lookup for `http://` addresses | **Leaks the hostname to the host resolver** unless the vpncell Firefox policy is installed (see above). |
+| HTTPS-First's HTTPS-record lookup for `http://` addresses | Prevented by the vpncell Firefox policy, which the package installs; without it the hostname **leaks to the host resolver** (see above). |
 | DNS prefetch, link prefetch, speculative connections | Turned off with `privacy.network.networkPredictionEnabled = false`. This is a **global** setting: it also applies to default tabs. |
 | HTTP/3 (QUIC) | Firefox does not use HTTP/3 through a SOCKS proxy; the test loads an HTTP/3 site in a container and sees no UDP/443 on the host interface. |
 | WebRTC | `privacy.network.webRTCIPHandlingPolicy = "disable_non_proxied_udp"` (global): WebRTC in a proxied tab uses only the proxy; default tabs keep working. Tested with a STUN request from a mapped container: no UDP to the STUN server, no host candidates. |
@@ -418,10 +416,11 @@ so it cannot connect as downloaded. The fetch script rewrites it locally to
 
 See also DESIGN.md §12 (every change made during the build) and §16.
 
-- **Firefox: `http://` hostnames leak to the host resolver unless the
-  vpncell Firefox policy is installed** (`sudo vpncell firefox-policy
-  install`; see "Required: the vpncell Firefox policy"). It is not
-  installed automatically.
+- **Firefox: `http://` hostnames leak to the host resolver without the
+  vpncell Firefox policy.** The package installs it; if you remove it
+  (`firefox-policy remove`), or run a Firefox that ignores
+  `/etc/firefox/policies`, the leak is back. With DNS-over-HTTPS on, use
+  `firefox-policy install --strict` (turns HTTPS-First off).
 - **Firefox: if the extension is not running** (disabled, being updated or
   reloaded), Firefox connects mapped containers directly. An extension
   cannot prevent this.

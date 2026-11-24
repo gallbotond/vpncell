@@ -47,8 +47,29 @@ func TestPackageUpgradeAndRemove(t *testing.T) {
 	for _, l := range loops {
 		l.reset()
 	}
+	// The package installed the Firefox policy (README "Firefox").
+	const policy = "/etc/firefox/policies/policies.json"
+	const pref = "network.dns.native_https_query"
+	hasPref := func() bool { b, _ := os.ReadFile(policy); return strings.Contains(string(b), pref) }
+	if !hasPref() {
+		t.Errorf("first install did not install the Firefox policy")
+	}
+	// An admin who opts out keeps that choice across upgrades.
+	if r := root(t, "firefox-policy", "remove"); r.code != 0 {
+		t.Fatalf("firefox-policy remove: %v", r)
+	}
 	cap := startCapture(t)
 	apt("install", next)
+	if hasPref() {
+		t.Errorf("upgrade re-added the Firefox policy after the admin removed it")
+	}
+	// Opt back in, with an unrelated policy in the same file that must survive.
+	if r := root(t, "firefox-policy", "install"); r.code != 0 || !hasPref() {
+		t.Fatalf("firefox-policy install: %v", r)
+	}
+	b, _ := os.ReadFile(policy)
+	os.WriteFile(policy, []byte(strings.Replace(string(b), `"policies": {`, `"policies": {"DisableTelemetry": true,`, 1)), 0o644)
+	defer os.Remove(policy)
 	if v2 := ver(); v2 == v1 {
 		t.Fatalf("version did not change (%s)", v1)
 	}
@@ -93,6 +114,18 @@ func TestPackageUpgradeAndRemove(t *testing.T) {
 	}
 	if out, _ := exec.Command("ss", "-Hltnp").Output(); strings.Contains(string(out), "vpncelld") || strings.Contains(string(out), "127.0.0.1:70") {
 		t.Errorf("SOCKS listeners left after remove:\n%s", out)
+	}
+	if hasPref() {
+		t.Errorf("remove left vpncell's entry in the Firefox policy")
+	}
+	if b, _ := os.ReadFile(policy); !strings.Contains(string(b), "DisableTelemetry") {
+		t.Errorf("remove dropped another policy from %s:\n%s", policy, b)
+	}
+	if _, err := os.Stat("/var/lib/vpncell/firefox-policy-installed"); err == nil {
+		t.Errorf("remove kept the policy marker (a reinstall would not add the policy)")
+	}
+	if _, err := os.Stat(policy + ".vpncell-tmp"); err == nil {
+		t.Errorf("temporary policy file left")
 	}
 	if _, err := os.Stat("/etc/vpncell/profiles.d/" + sets[0].a + ".toml"); err != nil {
 		t.Errorf("profiles removed by remove (they must stay until purge)")
