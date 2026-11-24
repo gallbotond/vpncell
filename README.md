@@ -94,6 +94,32 @@ the resolver files). Measured on Ubuntu 26.04 with a GNOME session
 `localhost` is the profile's own loopback, not the host's. ssh-agent and
 gpg-agent (path sockets) work.
 
+## SOCKS5 proxy (used by the Firefox extension)
+
+For every configured profile the daemon listens on `127.0.0.1:<port>`
+(SOCKS5, CONNECT only, username/password). `vpncell socks <profile>` prints
+`socks5h://user:pass@127.0.0.1:<port>` for profiles you may use, for example
+`curl -x "$(vpncell socks work)" https://ifconfig.me`.
+
+- Every outbound connection and every DNS lookup for a SOCKS request is made
+  from a socket created **inside** the profile's namespace, by threads that
+  entered the namespace once and never leave it; each socket's namespace is
+  checked with `SIOCGSKNS` before use.
+- Hostnames are resolved with the profile's DNS servers and search domains
+  only (never the host's `/etc/hosts` or resolver). A profile without DNS
+  servers fails hostname requests.
+- Ports are allocated once from `socks_port_range` (default `700-799`,
+  privileged so no local user can take them over while the daemon is
+  stopped) and saved in `/var/lib/vpncell/state.json`; `[socks] port` fixes
+  one. Credentials are random per profile, kept in `/run/vpncell` (new after
+  a reboot) and only given to users allowed on the profile.
+- The listening sockets stay bound while the daemon restarts (systemd's fd
+  store): new connections wait and then succeed. Connections that were
+  already established are closed when the daemon process stops.
+- When a profile is down, requests fail (SOCKS "general failure"); with
+  `autostart = "on-use"` the first request brings the profile up.
+- UDP ASSOCIATE is not supported.
+
 ## Import safety
 
 Imported configs are untrusted. The WireGuard importer keeps only an
@@ -133,7 +159,11 @@ traffic is excluded with a BPF filter on the UDP ports `tailscaled` owns
 (found with `ss -ulpn`); nothing else is excluded. A leak is a packet to a
 test destination (`10.99.0.0/24`, `172.30.0.0/16`, tunnel ranges), a marker
 string (random `leak…` hostnames) in clear text, or any packet to the VPN
-endpoint that is not UDP 51820/1194. No host firewall rule is added.
+endpoint that is not UDP 51820/1194. One exception: ICMPv6 "destination
+unreachable" errors that quote a UDP packet *from* the VPN port. The host
+kernel sends them when the server keeps sending keepalives to the closed
+port of an earlier client; they carry no profile traffic. No host firewall
+rule is added.
 
 ### Test VM changes
 
@@ -185,5 +215,8 @@ of every edited file are next to it as `*.bak-vpncell-<timestamp>`):
   enforcing AppArmor profile (`sudo aa-status`).
 - Abstract Unix sockets (X11's `@/tmp/.X11-unix/X0`, multipathd, iscsiadm)
   are not reachable from a profile; X11 clients fall back to the path socket.
+- Established SOCKS connections (for example a long download in a mapped
+  Firefox container) are cut when the daemon restarts; new connections wait
+  and succeed.
 - Sessions are not part of your logind session (no PAM session), and they
   run with the daemon's resource limits.

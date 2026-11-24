@@ -47,7 +47,7 @@ const (
 	userAllowed  = "vctest1"
 	userDenied   = "vctest2"
 	userNoGroup  = "vctest3"
-	labWGServers = 2
+	labWGServers = 4
 )
 
 func TestMain(m *testing.M) {
@@ -334,4 +334,14 @@ func waitFor(t testing.TB, d time.Duration, what string, cond func() bool) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for %s", what)
+}
+
+// stressProfiles are the profiles (with their lab servers) used by the
+// thread-safety test: all four WireGuard lab profiles, plus OpenVPN ones.
+func stressProfiles() [][2]string {
+	var out [][2]string
+	for i := 1; i <= labWGServers; i++ {
+		out = append(out, [2]string{fmt.Sprintf("t-wg%d", i), fmt.Sprintf("wg%d", i)})
+	}
+	return append(out, openVPNStressProfiles()...)
 }

@@ -650,6 +650,17 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     programs cannot connect to host path sockets from a session (AppArmor
     reports a "disconnected path"). The private mount namespace is required
     for per-profile DNS, so this is documented as a limitation instead.
+20. **SOCKS serving starts after adoption** (§7, §13): listeners taken
+    from the fd store are served only after the daemon has re-adopted the
+    profiles, so a connection waiting in the backlog never sees a
+    half-adopted profile (found by the restart test).
+21. **SOCKS brings `on-use` profiles up** (§7): the first SOCKS request to
+    a down profile with `autostart = "on-use"` brings it up, which is how
+    the extension "uses" a profile. `manual` profiles fail the request.
+22. **Leak rule for ICMP errors** (§15.3): ICMPv6 destination-unreachable
+    errors that quote a UDP packet *from* the VPN port (the host's reply to
+    server keepalives aimed at a closed client port) are not counted as
+    leaks.
 
 ## 13. Lifecycle
 

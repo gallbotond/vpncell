@@ -143,7 +143,12 @@ func (c *capture) assertNoLeaks(markers ...string) {
 	if n, s := c.count("net 10.99.0.0/24 or net 10.200.0.0/16 or net 172.30.0.0/16 or net 10.0.70.0/24 or net 10.8.0.0/24"); n > 0 {
 		c.t.Errorf("LEAK: %d packets to test destinations on %s:\n%s", n, c.iface, s)
 	}
-	if n, s := c.count(fmt.Sprintf("host %s and not (udp port 51820 or udp port 1194)", vmEndpoint)); n > 0 {
+	// ICMP errors that the host kernel sends back for tunnel packets from the
+	// server (for example "port unreachable" when wg-easy keeps sending
+	// keepalives to the closed port of an earlier client) quote a packet from
+	// the VPN port; they carry no profile traffic.
+	icmpErr := "(icmp6 and ip6[40] == 1 and (ip6[88:2] == 51820 or ip6[88:2] == 1194))"
+	if n, s := c.count(fmt.Sprintf("host %s and not (udp port 51820 or udp port 1194) and not %s", vmEndpoint, icmpErr)); n > 0 {
 		c.t.Errorf("LEAK: %d non-tunnel packets to the VPN endpoint on %s:\n%s", n, c.iface, s)
 	}
 	for _, m := range markers {

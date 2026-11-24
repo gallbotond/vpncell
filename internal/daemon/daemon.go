@@ -44,6 +44,7 @@ type Daemon struct {
 
 	sessions *sessionTable
 	exts     []extension
+	socks    *socksManager
 }
 
 // extension lets later build steps hook into the daemon lifecycle without
@@ -141,6 +142,7 @@ func Run(ctx context.Context, opt Options) error {
 		d.adoptOrStart(false)
 	}
 
+	d.socks.start()
 	ln, err := d.controlListener()
 	if err != nil {
 		return err
@@ -336,6 +338,9 @@ func (d *Daemon) adopt(p *profile.Profile, rt *rtProfile) {
 	rt.upSince = time.Now()
 	rt.mu.Unlock()
 	d.refreshStatus(p, rt)
+	for _, e := range d.exts {
+		e.profileUp(p, rt)
+	}
 	d.log.Info("adopted profile", "profile", p.Name, "interface", ifn)
 }
 

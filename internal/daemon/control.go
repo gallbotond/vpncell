@@ -12,6 +12,7 @@ import (
 
 	"github.com/gallbotond/vpncell/internal/backend"
 	"github.com/gallbotond/vpncell/internal/control"
+	"github.com/gallbotond/vpncell/internal/netns"
 	"github.com/gallbotond/vpncell/internal/profile"
 )
 
@@ -160,6 +161,14 @@ func (d *Daemon) handle(c *caller, conn *control.Conn, req *control.Request, fil
 			return nil, control.Errorf(control.ErrDenied, "import is for root only (use sudo)")
 		}
 		return d.handleImport(req.Import)
+	case "debug":
+		if !c.admin {
+			return nil, control.Errorf(control.ErrDenied, "debug is for root only")
+		}
+		return &control.Response{Type: "ok", Debug: map[string]uint64{
+			"socket_namespace_mismatches": netns.MismatchCount.Load(),
+			"sockets_created":             netns.SocketsCreated.Load(),
+		}}, nil
 	case "reload":
 		if !c.admin {
 			return nil, control.Errorf(control.ErrDenied, "reload is for root only")
