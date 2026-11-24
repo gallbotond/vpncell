@@ -42,7 +42,9 @@ func (t *sessionTable) systemd(ctx context.Context) *sdbus.Conn {
 	if t.sd != nil && t.sd.Connected() {
 		return t.sd
 	}
-	c, err := sdbus.NewSystemConnectionContext(ctx)
+	// The connection must not be tied to a request context: go-systemd
+	// closes it when that context ends.
+	c, err := sdbus.NewSystemConnectionContext(context.Background())
 	if err != nil {
 		return nil
 	}

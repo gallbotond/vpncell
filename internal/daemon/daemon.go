@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/activation"
@@ -197,11 +198,8 @@ fresh:
 	}
 	ul.SetUnlinkOnClose(false)
 	d.fixSocketPerms()
-	if f, err := ul.File(); err == nil {
-		if err := sdNotify("FDSTORE=1\nFDNAME=control", int(f.Fd())); err != nil {
-			d.log.Warn("fd store", "err", err)
-		}
-		f.Close()
+	if err := storeFD("control", ul); err != nil {
+		d.log.Warn("fd store", "err", err)
 	}
 	return ul, nil
 }
@@ -341,4 +339,22 @@ func (d *Daemon) shutdown() {
 	}
 	// Namespaces, tunnels, OpenVPN units and sessions stay; the next daemon
 	// adopts them.
+}
+
+// storeFD hands a listener's descriptor to systemd's fd store. It uses the
+// raw descriptor: os.File.Fd() on a dup would switch the shared file
+// description to blocking mode and break the listener's poller.
+func storeFD(name string, l syscall.Conn) error {
+	rc, err := l.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var serr error
+	err = rc.Control(func(fd uintptr) {
+		serr = sdNotify("FDSTORE=1\nFDNAME="+name, int(fd))
+	})
+	if err != nil {
+		return err
+	}
+	return serr
 }

@@ -27,7 +27,7 @@ type rateLimiter struct {
 var execLimiter = &rateLimiter{hits: map[uint32][]time.Time{}}
 
 const (
-	execBurst  = 30
+	execBurst  = 200
 	execWindow = 10 * time.Second
 )
 
