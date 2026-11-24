@@ -5,8 +5,8 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
-**Step 6 — packaging and README**: branch `step6-packaging` (worktree
-`../vpncell-step6` during the build). Step 5 merged.
+**All six build steps are done and merged.** See "Final report" below.
+Open items need the user (see "What I need from you").
 
 ## Steps
 
@@ -18,7 +18,7 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 | 3. SOCKS5 proxy | `step3-socks` | [#3](https://github.com/gallbotond/vpncell/pull/3) | merged |
 | 4. Native host + Firefox extension (MV3 spike first) | `step4-firefox` | [#4](https://github.com/gallbotond/vpncell/pull/4) | merged (2 known failures) |
 | 5. OpenVPN backend | `step5-openvpn` | [#5](https://github.com/gallbotond/vpncell/pull/5) | merged |
-| 6. Packaging, README | `step6-packaging` | | next |
+| 6. Packaging, README | `step6-packaging` | [#6](https://github.com/gallbotond/vpncell/pull/6) | merged |
 
 ## How to resume
 
@@ -66,3 +66,58 @@ AF_PACKET in the test binary.
    hook, management status), lab OpenVPN servers, VM OpenVPN profile; add
    OpenVPN and mixed sets to every scenario; rerun everything.
 2. Step 6: .deb, units, uninstall, README completion, final report.
+
+## Final report
+
+### Pull requests
+
+| Step | PR | Result |
+|---|---|---|
+| 1. Daemon + WireGuard + namespace | [#1](https://github.com/gallbotond/vpncell/pull/1) | all step tests pass |
+| 2. Terminal sessions | [#2](https://github.com/gallbotond/vpncell/pull/2) | all pass |
+| 3. SOCKS5 proxy | [#3](https://github.com/gallbotond/vpncell/pull/3) | all pass (25 tests) |
+| 4. Native host + Firefox extension | [#4](https://github.com/gallbotond/vpncell/pull/4) | tarball Firefox passes; 2 known failures (snap portal permission; HTTPS-First DNS lookup without the policy) |
+| 5. OpenVPN backend | [#5](https://github.com/gallbotond/vpncell/pull/5) | all scenarios pass with WireGuard, OpenVPN and mixed sets; same 2 known failures |
+| 6. Packaging, README | [#6](https://github.com/gallbotond/vpncell/pull/6) | lifecycle test passes; full suite against the installed .deb passes except the 2 known failures |
+
+No test was skipped, weakened or deleted. No run found a leak in vpncell's
+own code paths after the fixes listed in DESIGN.md §12 (items 22, 25, 26
+are leaks the tests found in Firefox's behaviour; 25 is fixed, 26 needs the
+policy below).
+
+### Known limitations
+
+All are in README "Known limitations". The ones that matter most:
+
+1. Firefox: `http://` hostnames in mapped containers reach the host
+   resolver (HTTPS-First's HTTPS-record lookup) unless the vpncell Firefox
+   policy is installed.
+2. Firefox: a disabled, crashed or updating extension means mapped
+   containers connect directly (no extension can prevent this).
+3. AppArmor-confined programs (snap apps, `notify-send`, …) cannot reach
+   host path sockets from a profile shell.
+4. `resolvectl` and other D-Bus clients of systemd-resolved resolve through
+   the host from a profile shell.
+5. Established SOCKS connections are cut by a daemon restart (new ones
+   wait and succeed); sessions and tunnels are not affected.
+
+### What I need from you
+
+1. **Decide on the Firefox policy** (DESIGN.md §12 item 26): run
+   `sudo vpncell firefox-policy install` (or `install --strict` if you use
+   DoH), and decide whether the package should install it by default. The
+   build session was not allowed to install it. Then rerun
+   `make itest RUN=TestBrowserHTTPNameNoHostDNS`.
+2. **Allow the snap Firefox once** to start the native host (portal
+   dialog, or the `gdbus … SetPermission webextensions true vpncell
+   snap.firefox "['yes']"` command in README "Snap Firefox"); then rerun
+   `make itest RUN=TestBrowser` for the snap results.
+3. **AMO signing:** `AMO_JWT_ISSUER=… AMO_JWT_SECRET=… packaging/amo-sign.sh`
+   (unlisted) to get a signed `.xpi` for release Firefox.
+4. Review the test-VM changes listed in README "Test VM changes".
+
+### State of this host
+
+The `vpncell` 0.9.1 package is installed (from the final test run); the
+dev build's runtime units were removed by `test/scripts/package-test.sh`.
+Test users `vctest1..3` exist. Lab namespaces are removed after each run.

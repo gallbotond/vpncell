@@ -5,7 +5,8 @@ set -e
 case "$1" in
 remove|deconfigure)
 	if [ -d /run/systemd/system ]; then
-		systemctl stop vpncell-sessions.slice >/dev/null 2>&1 || true
+		# vpncell-sessions.slice lives under the implicit parent vpncell.slice.
+		systemctl stop vpncell.slice vpncell-sessions.slice >/dev/null 2>&1 || true
 		systemctl stop 'vpncell-openvpn@*.service' >/dev/null 2>&1 || true
 		systemctl disable --now vpncelld.service >/dev/null 2>&1 || true
 		systemctl clean --what=fdstore vpncelld.service >/dev/null 2>&1 || true
