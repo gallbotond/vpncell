@@ -371,6 +371,23 @@ has announced no end date for MV2. If a spike at the start of step 4 shows
 that MV3 keeps the page alive while a native port is open, I will switch and
 say so.
 
+**Spike result (2026-11-24, step 4; code in `test/spikes/mv3`).** A minimal
+MV3 extension (event page, `proxy.onRequest` for `<all_urls>`, a native port
+to a logging host, a 5 s timer that posts on the port) ran headless in the
+tarball Firefox 161 with `extensions.background.idle.timeout = 30`:
+
+- Run 1 (100 s): the page stayed alive; ticks continued without a gap and
+  there was one page instance.
+- Run 2 (70 s): ticks stopped about 30 s after start; the page was
+  suspended although the native port was open. The next proxied navigation
+  woke a **new** page instance (in-memory state gone, new native port), and
+  that request had to wait for the page to start.
+
+`proxy.onRequest` and native messaging work in MV3, but an open native port
+does not reliably keep the event page alive, so the in-memory cache and the
+daemon event stream can be lost at any time. **Decision: MV2 with a
+persistent background page**, as designed.
+
 ### 9.2 Behaviour
 
 - Mapping `cookieStoreId → profile` in `storage.local`. Only
