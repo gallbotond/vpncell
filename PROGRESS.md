@@ -5,11 +5,8 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
-**Step 4 — native host + Firefox extension**: done with two known failures
-that need the user (see Open problems); PR open (branch `step4-firefox`).
-Next: step 5 (OpenVPN). Drafts for step 5 (importer, backend, hook, lab
-server, daemon glue) were written in the session scratchpad and are being
-moved into the repo on branch `step5-openvpn`.
+**Step 6 — packaging and README**: branch `step6-packaging` (worktree
+`../vpncell-step6` during the build). Step 5 merged.
 
 ## Steps
 
@@ -20,8 +17,8 @@ moved into the repo on branch `step5-openvpn`.
 | 2. Terminal sessions in full | `step2-terminal-sessions` | [#2](https://github.com/gallbotond/vpncell/pull/2) | merged |
 | 3. SOCKS5 proxy | `step3-socks` | [#3](https://github.com/gallbotond/vpncell/pull/3) | merged |
 | 4. Native host + Firefox extension (MV3 spike first) | `step4-firefox` | [#4](https://github.com/gallbotond/vpncell/pull/4) | merged (2 known failures) |
-| 5. OpenVPN backend | `step5-openvpn` | | next |
-| 6. Packaging, README | | | |
+| 5. OpenVPN backend | `step5-openvpn` | [#5](https://github.com/gallbotond/vpncell/pull/5) | merged |
+| 6. Packaging, README | `step6-packaging` | | next |
 
 ## How to resume
 

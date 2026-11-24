@@ -709,6 +709,20 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     refused to make it); until it is installed,
     `TestBrowserHTTPNameNoHostDNS` reports a known failure. The other
     browser tests set the same pref in their test profile.
+27. **OpenVPN status through a cached management query** (§4.4): each
+    management connection is logged by openvpn, so `state` and
+    `load-stats` go over one connection and are cached for 10 s (the cache
+    is bypassed while `up` waits for the first connection).
+28. **OpenVPN unit capabilities** (§4.4): `CAP_NET_ADMIN CAP_SYS_ADMIN
+    CAP_DAC_OVERRIDE`, `ProtectSystem=full`, `ProtectHome=yes`,
+    `PrivateTmp=yes`, `Type=notify`. The hook also rewrites the profile's
+    resolver files itself, so pushed DNS is right even while the daemon
+    restarts.
+29. **A connected OpenVPN profile without its tun device is broken** (§4.4):
+    openvpn keeps running when its device is deleted, so status reports
+    the tunnel missing when the management state is CONNECTED but the
+    device is gone from the namespace, and the supervisor restarts the unit
+    (found by the fail-closed tests; recovery takes about 5 s).
 
 ## 13. Lifecycle
 

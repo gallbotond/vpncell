@@ -283,7 +283,7 @@ failoverDirect: g("network.proxy.failover_direct")};`, nil, &prefs)
 			cap.stop()
 			// Only the test site's addresses count: other programs on the
 			// host (the desktop's own browser) use QUIC too.
-			ips, _ := net.LookupHost("cloudflare-quic.com")
+			ips := lookupRetry("cloudflare-quic.com")
 			var hf []string
 			for _, ip := range ips {
 				hf = append(hf, "host "+ip)
@@ -378,4 +378,16 @@ func TestBrowserHTTPNameNoHostDNS(t *testing.T) {
 			}
 		}
 	})
+}
+
+// lookupRetry resolves a name on the host, retrying transient failures of
+// the host resolver.
+func lookupRetry(name string) []string {
+	for i := 0; i < 10; i++ {
+		if ips, err := net.LookupHost(name); err == nil && len(ips) > 0 {
+			return ips
+		}
+		time.Sleep(time.Second)
+	}
+	return nil
 }

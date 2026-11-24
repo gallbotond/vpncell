@@ -214,13 +214,45 @@ installs signed add-ons; `packaging/amo-sign.sh` signs it as an *unlisted*
 add-on with your own AMO API keys. (The build never uploads anything to
 Mozilla.)
 
+## OpenVPN profiles
+
+`sudo vpncell import NAME file.ovpn [--auth-file creds.txt]` imports an
+OpenVPN client config. Files it references (`ca`, `cert`, `key`,
+`tls-auth`, `tls-crypt`, …) and inline blocks are stored root-only in
+`/etc/vpncell/secrets/NAME/`. Logins use stored credentials only: a config
+that needs a password prompt, a one-time code or an encrypted private key
+is rejected (decrypt the key first; give username and password with
+`--auth-file` or an `<auth-user-pass>` block).
+
+Each OpenVPN profile runs as the systemd unit `vpncell-openvpn@NAME`
+(`journalctl -u vpncell-openvpn@NAME` for its log). vpncell adds its own
+options after the imported ones: `ifconfig-noexec`, `route-noexec`, its
+own up hook (which moves the tun device into the profile's namespace and
+configures it there), `persist-tun`, `disable-dco` and
+`dns-updown disable` (OpenVPN 2.7 would otherwise change the host's DNS).
+DNS servers and search domains pushed by the server are used
+(`[dns] use_pushed = true`). IPv6 works when the server pushes an IPv6
+address; otherwise IPv6 fails closed.
+
 ## Import safety
 
-Imported configs are untrusted. The WireGuard importer keeps only an
-allowlist of keys. `PreUp`, `PostUp`, `PreDown`, `PostDown`, `SaveConfig`,
-`Table`, `ListenPort` and `FwMark` are stripped and listed; unknown keys,
-unknown sections and AmneziaWG keys are rejected. Nothing from a config is
-ever executed.
+Imported configs are untrusted. Nothing from a config is ever executed.
+
+- **WireGuard:** only an allowlist of keys is kept. `PreUp`, `PostUp`,
+  `PreDown`, `PostDown`, `SaveConfig`, `Table`, `ListenPort` and `FwMark`
+  are stripped and listed; unknown keys, unknown sections and AmneziaWG keys
+  are rejected.
+- **OpenVPN:** an allowlist of directives is kept. Directives that run
+  programs or load code (`up`, `down`, `route-up`, `ipchange`,
+  `tls-verify`, `auth-user-pass-verify`, `learn-address`, `plugin`,
+  `script-security`, `config`, `dns-updown`, …), change the host (`dev-node`,
+  `route-noexec`, `management`, `daemon`, `log`, `writepid`, `chroot`,
+  proxies, …) or need interaction (`auth-user-pass` without credentials,
+  `static-challenge`, `auth-retry interact`, encrypted keys) are rejected
+  with the reason. Directives vpncell sets itself or that have no effect
+  (`user`, `group`, `persist-tun`, `resolv-retry`, `dev`, `setenv`,
+  `verb` ≥ 7, Windows-only options, …) are stripped and listed. Unknown
+  directives are rejected. `dev tap` is not supported.
 
 ## Tests
 
@@ -286,6 +318,11 @@ of every edited file are next to it as `*.bak-vpncell-<timestamp>`):
    `/opt/vpn-lab/openvpn/staticclients/vpncell-test` pushes
    `dhcp-option DNS 172.30.2.53`, `dhcp-option DOMAIN vpn-lab.test` and
    `route-ipv6 2000::/3` to that client only; other clients are unchanged.
+
+The OpenVPN client config that openvpn-ui generates carries the server's
+`ta.key` as `<tls-crypt>`, but the VM's server uses `tls-auth pki/ta.key 0`,
+so it cannot connect as downloaded. The fetch script rewrites it locally to
+`<tls-auth>` with `key-direction 1` (same key; nothing changed on the VM).
 
 `test/scripts/vm-fetch-configs.sh` downloads the two client configs to
 `/var/lib/vpncell-test/vm` (root-only), reading the admin credentials from
