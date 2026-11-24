@@ -1,23 +1,21 @@
-# vpnns design
+# vpncell design
 
-Status: **draft for review**. No implementation code exists yet. This note
-follows [vpnns-build-prompt.md](vpnns-build-prompt.md) and
+Status: **approved** at the design review on 2026-11-24 (see the "Design
+review" section in [DECISIONS.md](DECISIONS.md)). This note follows [vpncell-build-prompt.md](vpncell-build-prompt.md) and
 [DECISIONS.md](DECISIONS.md). Section 12 lists every place where this design
 changes or interprets the prompt; please check those first.
 
 ## 1. Name
 
-"vpnns" is a placeholder. Proposal: **`vpncell`**.
+**`vpncell`** (chosen at the design review; the placeholder was "vpnns").
 
 - Each profile is an isolated network *cell*: a namespace with only `lo` and
   one tunnel. The word says "separate compartments", which is the point of the
   tool, and it does not depend on the implementation detail "namespace".
-- Commands read well: `vpncell shell work`, `vpncell up lab`, daemon
-  `vpncelld`, group `vpncell`, package `vpncell`.
-- Alternatives if you prefer: `tunnelcell`, or keep `vpnns`.
+- Commands: `vpncell shell work`, `vpncell up lab`, daemon `vpncelld`, group
+  `vpncell`, package `vpncell`.
 
-This document uses `vpnns` until you choose. Renaming touches only the binary,
-unit, group, path and extension-ID strings, which will live in one Go package
+The binary, unit, group, path and extension-ID strings live in one Go package
 (`internal/brand`) and one TypeScript constant.
 
 ## 2. Language: Go
@@ -45,17 +43,17 @@ unit, group, path and extension-ID strings, which will live in one Go package
 
 | Binary | Runs as | Purpose |
 |---|---|---|
-| `/usr/sbin/vpnnsd` | root, `vpnnsd.service` | The only privileged long-running component. Profiles, namespaces, tunnels, supervision, control socket, SOCKS5 servers. |
-| `vpnnsd session-helper` (same binary, internal mode) | root, then the caller's uid | One per terminal session. Enters the profile namespace, sets up the private mount namespace, starts the user command with full privilege drop, then drops its own privileges and reports the exit status. |
-| `vpnnsd ovpn-hook` (same binary, internal mode) | root, started by `openvpn` | OpenVPN `--up`/`--down` hook. Moves the tun device into the namespace and applies pushed addresses, routes and DNS there. |
-| `/usr/bin/vpnns` | the user | CLI. Talks only to the control socket. |
-| `/usr/lib/vpnns/vpnns-native` | the user, started by Firefox or the portal | Native messaging host. Relays between the extension and the control socket. |
+| `/usr/sbin/vpncelld` | root, `vpncelld.service` | The only privileged long-running component. Profiles, namespaces, tunnels, supervision, control socket, SOCKS5 servers. |
+| `vpncelld session-helper` (same binary, internal mode) | root, then the caller's uid | One per terminal session. Enters the profile namespace, sets up the private mount namespace, starts the user command with full privilege drop, then drops its own privileges and reports the exit status. |
+| `vpncelld ovpn-hook` (same binary, internal mode) | root, started by `openvpn` | OpenVPN `--up`/`--down` hook. Moves the tun device into the namespace and applies pushed addresses, routes and DNS there. |
+| `/usr/bin/vpncell` | the user | CLI. Talks only to the control socket. |
+| `/usr/lib/vpncell/vpncell-native` | the user, started by Firefox or the portal | Native messaging host. Relays between the extension and the control socket. |
 | Firefox extension (TypeScript → JS) | Firefox | Container → profile mapping, `proxy.onRequest`, popup UI. |
 
-Package layout (Go module `github.com/gallbotond/vpnns`):
+Package layout (Go module `github.com/gallbotond/vpncell`):
 
 ```
-cmd/vpnnsd  cmd/vpnns  cmd/vpnns-native
+cmd/vpncelld  cmd/vpncell  cmd/vpncell-native
 internal/control     # protocol types, framing, SCM_RIGHTS
 internal/profile     # TOML parsing, validation, access lists
 internal/importer    # wg-quick and .ovpn sanitizers (pure functions, fuzzed)
@@ -71,7 +69,7 @@ packaging/           # debian/, systemd units, manifests
 test/                # integration tests, local lab, Firefox tests
 ```
 
-Privileged code is `cmd/vpnnsd` plus `internal/{netns,backend,session,socks,firewall,dnsfiles}`.
+Privileged code is `cmd/vpncelld` plus `internal/{netns,backend,session,socks,firewall,dnsfiles}`.
 Nothing in the daemon calls a shell or `ip`/`wg`/`nft`. The only external
 program it starts is `openvpn`, and only through systemd.
 
@@ -79,9 +77,9 @@ program it starts is `openvpn`, and only through systemd.
 
 ### 4.1 Namespace
 
-- Name `vpnns-<profile>`, created like `ip netns add`: a pinned thread calls
+- Name `vpncell-<profile>`, created like `ip netns add`: a pinned thread calls
   `unshare(CLONE_NEWNET)`, and `/proc/thread-self/ns/net` is bind-mounted to
-  `/run/netns/vpnns-<profile>`. `ip netns exec` keeps working for debugging.
+  `/run/netns/vpncell-<profile>`. `ip netns exec` keeps working for debugging.
 - Contents: `lo` (up, `127.0.0.1/8`, `::1/128`) and one tunnel interface.
   No veth, no bridge, no NAT.
 - Routes: by default `0.0.0.0/0` via the tunnel, and `::/0` via the tunnel
@@ -130,12 +128,12 @@ configured interface inside the namespace plus a status".
 ### 4.4 OpenVPN
 
 `openvpn` (2.7.0 from the archive) runs as a templated systemd unit,
-`vpnns-openvpn@<profile>.service`, which the daemon starts and stops over
+`vpncell-openvpn@<profile>.service`, which the daemon starts and stops over
 D-Bus. It is not a child of the daemon, so it survives a daemon restart, and
 its output goes to the journal.
 
-The daemon writes `/run/vpnns/<profile>/openvpn.conf`: the sanitized stored
-config, followed by options vpnns always forces:
+The daemon writes `/run/vpncell/<profile>/openvpn.conf`: the sanitized stored
+config, followed by options vpncell always forces:
 
 ```
 dev vpntun<N>
@@ -143,15 +141,15 @@ dev-type tun
 ifconfig-noexec
 route-noexec
 script-security 2
-up      "/usr/sbin/vpnnsd ovpn-hook <profile>"
-down    "/usr/sbin/vpnnsd ovpn-hook <profile>"
+up      "/usr/sbin/vpncelld ovpn-hook <profile>"
+down    "/usr/sbin/vpncelld ovpn-hook <profile>"
 up-restart
 persist-tun
 disable-dco                    # see below
 dns-updown disable             # see below
 auth-retry nointeract
 resolv-retry infinite
-management /run/vpnns/<profile>/mgmt.sock unix
+management /run/vpncell/<profile>/mgmt.sock unix
 ```
 
 - **`dns-updown disable` is essential.** OpenVPN 2.7 runs a default
@@ -162,13 +160,13 @@ management /run/vpnns/<profile>/mgmt.sock unix
   offload driver, and OpenVPN 2.7 uses it by default. Whether an `ovpn` device
   works after a netns move is untested, and DCO creates the device differently
   from tun. v1 forces classic tun; DCO can be evaluated later.
-- **The hook** (`vpnnsd ovpn-hook`) reads OpenVPN's environment (`dev`,
+- **The hook** (`vpncelld ovpn-hook`) reads OpenVPN's environment (`dev`,
   `ifconfig_local`, `ifconfig_netmask` / `ifconfig_remote`,
   `ifconfig_ipv6_*`, `route_*`, `route_ipv6_*`, `tun_mtu`,
   `foreign_option_*` for `dhcp-option DNS/DOMAIN`, and the `dns_*` variables
   of the 2.6+ `dns` option). It moves the device into the namespace if it is
   still in the host namespace, then applies addresses, MTU and routes inside
-  the namespace, and writes the pushed DNS to `/run/vpnns/<profile>/pushed.json`.
+  the namespace, and writes the pushed DNS to `/run/vpncell/<profile>/pushed.json`.
   It does this itself with netlink, so a reconnect works while the daemon is
   restarting. It then notifies the daemon on a best-effort basis.
 - **Reconnects:** with `persist-tun` the tun device survives soft restarts
@@ -196,7 +194,7 @@ management /run/vpnns/<profile>/mgmt.sock unix
 The resolver configuration a process in a profile sees:
 
 - **`resolv.conf`**: generated by the daemon at
-  `/run/vpnns/<profile>/resolv.conf` from the profile's `dns.servers` and
+  `/run/vpncell/<profile>/resolv.conf` from the profile's `dns.servers` and
   `dns.search`, or from servers OpenVPN pushes (when `dns.use_pushed = true`,
   the default for OpenVPN). With no servers, the file has no `nameserver`
   line. glibc then uses `127.0.0.1`, which is the namespace's own loopback, so
@@ -260,7 +258,7 @@ life and is never returned to the Go scheduler:
   HTTP(S); WebRTC is handled in section 9.6).
 - **Ports are privileged (below 1024) by default**, allocated once from
   `socks_port_range` (default `700-799`) and saved in
-  `/var/lib/vpnns/state.json`, or fixed with `socks.port` in the profile.
+  `/var/lib/vpncell/state.json`, or fixed with `socks.port` in the profile.
   Reason: if a profile's port were above 1024, any local user could bind it
   while the daemon is stopped and receive a container's traffic, hostnames
   included. Only root can bind below 1024 on Ubuntu
@@ -276,7 +274,7 @@ life and is never returned to the Go scheduler:
   (general failure). The port stays reserved and the extension's view stays
   stable.
 - **Credentials:** a random 128-bit username and password per profile, kept in
-  `/run/vpnns/state/` (root-only, `tmpfs`). They survive daemon restarts and
+  `/run/vpncell/state/` (root-only, `tmpfs`). They survive daemon restarts and
   change at reboot. Compared in constant time.
 - Outbound: hostname → profile DNS (section 5) → socket from the profile's
   factory (section 6) → non-blocking connect on the host goroutine → splice.
@@ -289,18 +287,21 @@ life and is never returned to the Go scheduler:
 
 ### 8.1 Flow
 
-1. `vpnns shell work` (or `vpnns run work -- cmd …`) connects to
-   `/run/vpnns/control.sock` and sends `exec` with argv, environment, cwd,
+0. `vpncell shell <profile>` runs the caller's `$SHELL` (from the client's
+   environment) as an interactive, non-login shell. If `$SHELL` is unset, the
+   shell from the caller's passwd entry is used (review decision).
+1. `vpncell shell work` (or `vpncell run work -- cmd …`) connects to
+   `/run/vpncell/control.sock` and sends `exec` with argv, environment, cwd,
    `TERM`, the window size and whether stdin is a TTY. For non-TTY runs it
    attaches stdin, stdout and stderr with `SCM_RIGHTS`.
 2. The daemon checks the caller (`SO_PEERCRED` for uid/gid/pid,
    `SO_PEERGROUPS` for supplementary groups) against the profile's access list
    and brings the profile up if `autostart = "on-use"`; otherwise it fails with
-   `profile "work" is down; run: vpnns up work`.
-3. The daemon starts `vpnnsd session-helper` and hands it the client
+   `profile "work" is down; run: vpncell up work`.
+3. The daemon starts `vpncelld session-helper` and hands it the client
    connection fd and the client's stdio fds. It moves the helper into a
-   transient scope `vpnns-s-<profile>-<uid>-<id>.scope` under
-   `vpnns-sessions.slice` (systemd D-Bus `StartTransientUnit`), and only then
+   transient scope `vpncell-s-<profile>-<uid>-<id>.scope` under
+   `vpncell-sessions.slice` (systemd D-Bus `StartTransientUnit`), and only then
    lets the helper continue. The scope keeps the session alive when the daemon
    restarts, and gives `down --kill` and `status` a clean handle.
 4. The helper, still root, on one locked thread: `setns` into the profile
@@ -310,7 +311,7 @@ life and is never returned to the Go scheduler:
    the whole capability bounding set and the ambient and inheritable sets; then
    starts the command with `uid`, `gid` and supplementary groups of the
    caller, `setsid`, and the pty slave as controlling TTY. The child gets
-   `VPNNS_PROFILE=<name>`. It `chdir`s to the caller's cwd *after* dropping
+   `VPNCELL_PROFILE=<name>`. It `chdir`s to the caller's cwd *after* dropping
    privileges, so permissions are checked as the user.
 5. The helper then drops its own privileges to the caller (setresuid, empty
    capability sets, no_new_privs) and stays as the parent of the command to
@@ -337,7 +338,7 @@ between its terminal and the master. Data never flows through the daemon.
   ssh.
 - Exit status: the helper sends `{exit_code}` or `{signal}`; the client exits
   with the code, or 128+signal.
-- On start, `vpnns shell` prints a one-line warning that commands which hand
+- On start, `vpncell shell` prints a one-line warning that commands which hand
   work to an already-running instance (`firefox <url>`, `code`, `xdg-open`)
   escape the profile.
 
@@ -402,30 +403,30 @@ say so.
 
 ### 9.3 Native messaging
 
-- Host name `vpnns`, manifest `allowed_extensions: ["<extension-id>"]` only.
-  The extension ID will be `vpnns@gallbotond.github.io` (follows the final
+- Host name `vpncell`, manifest `allowed_extensions: ["<extension-id>"]` only.
+  The extension ID will be `vpncell@gallbotond.github.io` (follows the final
   name).
 - The `.deb` installs the manifest system-wide at
-  `/usr/lib/mozilla/native-messaging-hosts/vpnns.json`. That path works for
+  `/usr/lib/mozilla/native-messaging-hosts/vpncell.json`. That path works for
   the tarball/deb Firefox *and* for the snap through the portal (the
   portal's search list, read from `/usr/libexec/xdg-desktop-portal`, contains
   `/usr/lib/mozilla/native-messaging-hosts`, `/usr/lib64/…`,
   `/usr/lib/x86_64-linux-gnu/mozilla/…` and `~/.mozilla/native-messaging-hosts`).
-- `vpnns firefox-setup --user` writes a per-user copy to
+- `vpncell firefox-setup --user` writes a per-user copy to
   `~/.mozilla/native-messaging-hosts/`, as the prompt asks. Note: this host's
   user has neither `~/.mozilla` nor `~/.config/mozilla` (the snap keeps its
   profile under `~/snap/firefox/common/.mozilla`, which the portal does **not**
   read), so the system-wide manifest is the primary path.
-- `vpnns-native` speaks Firefox's length-prefixed JSON on stdio and keeps one
+- `vpncell-native` speaks Firefox's length-prefixed JSON on stdio and keeps one
   control-socket connection with a `subscribe` stream, so it can push changes.
-  The daemon identifies the user by `SO_PEERCRED` of `vpnns-native`, which
+  The daemon identifies the user by `SO_PEERCRED` of `vpncell-native`, which
   runs as that user.
 
 ### 9.4 Snap Firefox and the portal (main risk, see section 13)
 
 Snap Firefox starts native hosts through `org.freedesktop.portal.WebExtensions`
 (Ubuntu's xdg-desktop-portal 1.21.1 carries it; confirmed in the binary). The
-portal (not the snap) starts `vpnns-native` on the host, unconfined, so the
+portal (not the snap) starts `vpncell-native` on the host, unconfined, so the
 control socket is reachable. On first use it asks the user through the GNOME
 Access dialog and remembers the answer in the permission store table
 `webextensions`. The automated tests pre-grant that entry over D-Bus
@@ -440,7 +441,7 @@ driven by Mozilla's standalone `geckodriver` release. The snap's
 restricts unprivileged user namespaces through AppArmor
 (`kernel.apparmor_restrict_unprivileged_userns = 1`), which degrades the
 tarball Firefox's sandbox. The tests add a **test-only** AppArmor profile,
-`vpnns-test-firefox`, that allows `userns` for that one path. It is
+`vpncell-test-firefox`, that allows `userns` for that one path. It is
 documented, not shipped in the `.deb`, and removed by the test teardown.
 
 ### 9.6 Traffic that can bypass the proxy
@@ -462,26 +463,26 @@ documented, not shipped in the `.deb`, and removed by the test teardown.
 
 ### 10.1 Files
 
-- `/etc/vpnns/profiles.d/<name>.toml`, mode `0600 root`.
-- Secrets: `/etc/vpnns/secrets/<name>/` (`0700 root`): sanitized `wg.conf`
+- `/etc/vpncell/profiles.d/<name>.toml`, mode `0600 root`.
+- Secrets: `/etc/vpncell/secrets/<name>/` (`0700 root`): sanitized `wg.conf`
   or `client.ovpn`, key and certificate files, `auth.txt`.
-- Daemon state: `/var/lib/vpnns/state.json` (SOCKS port allocations, profile
-  indexes). Runtime: `/run/vpnns/` (control socket, per-profile generated files,
+- Daemon state: `/var/lib/vpncell/state.json` (SOCKS port allocations, profile
+  indexes). Runtime: `/run/vpncell/` (control socket, per-profile generated files,
   credentials, OpenVPN management sockets), kept across daemon restarts
   (`RuntimeDirectoryPreserve=yes`).
 
 ```toml
 backend   = "wireguard"        # "wireguard" | "openvpn"
 autostart = "on-use"           # "boot" | "on-use" | "manual"
-                               # on-use: `vpnns shell` and the extension bring it up
+                               # on-use: `vpncell shell` and the extension bring it up
                                # manual: fail with "profile is down" instead
 
 [wireguard]
-config = "/etc/vpnns/secrets/work/wg.conf"     # sanitized at import
+config = "/etc/vpncell/secrets/work/wg.conf"     # sanitized at import
 
 # [openvpn]
-# config    = "/etc/vpnns/secrets/lab/client.ovpn"
-# auth_file = "/etc/vpnns/secrets/lab/auth.txt" # optional, user/pass only
+# config    = "/etc/vpncell/secrets/lab/client.ovpn"
+# auth_file = "/etc/vpncell/secrets/lab/auth.txt" # optional, user/pass only
 
 [dns]
 servers    = ["10.99.0.53"]    # from wg DNS= or set by hand
@@ -489,7 +490,7 @@ search     = ["corp.example"]
 use_pushed = true              # OpenVPN: also use pushed servers/domains
 
 [access]
-users  = ["botond"]            # root always allowed; caller must also be in group vpnns
+users  = ["botond"]            # root always allowed; caller must also be in group vpncell
 groups = []
 
 [routing]
@@ -506,11 +507,11 @@ exit_ip_url = ""               # e.g. "https://ifconfig.me/ip"; empty = no exit-
 nftables = true                # second layer; only for tests should this be false
 ```
 
-Global settings: `/etc/vpnns/vpnns.toml` (`socks_port_range`, log level).
+Global settings: `/etc/vpncell/vpncell.toml` (`socks_port_range`, log level).
 
 ### 10.2 Import
 
-`sudo vpnns import <name> <file> [--auth-file f]`. The CLI runs as root,
+`sudo vpncell import <name> <file> [--auth-file f]`. The CLI runs as root,
 reads the file and any files it references, and sends everything inline to the
 daemon (admin only, uid 0), which sanitizes, stores and prints a report. The
 sanitizers are pure functions in `internal/importer`, unit-tested and fuzzed.
@@ -543,7 +544,7 @@ directives are rejected instead of slipping through:
   sndbuf, rcvbuf, float, pull, pull-filter, route, route-ipv6, dhcp-option,
   dns, redirect-gateway (no effect; the namespace routes everything anyway),
   auth-user-pass (only with a file or --auth-file), ns-cert-type`.
-- Stripped and reported (vpnns sets its own value or the option has no effect
+- Stripped and reported (vpncell sets its own value or the option has no effect
   here): `user, group, persist-tun, resolv-retry, auth-retry nointeract,
   block-outside-dns, ignore-unknown-option, setenv, route-delay, verb >= 7`.
 - **Rejected with a clear error:** everything that runs programs or loads code
@@ -561,11 +562,11 @@ directives are rejected instead of slipping through:
   `<tls-crypt-v2>`, `<auth-user-pass>`, `<pkcs12>`) are written as root-only
   files and referenced by path.
 - Nothing from an imported config is ever executed. The only commands
-  `openvpn` runs are vpnns's own hook, set after the imported options.
+  `openvpn` runs are vpncell's own hook, set after the imported options.
 
 ## 11. Control socket protocol
 
-- `/run/vpnns/control.sock`, `SOCK_STREAM`, mode `0660 root:vpnns`.
+- `/run/vpncell/control.sock`, `SOCK_STREAM`, mode `0660 root:vpncell`.
 - Frames: 4-byte big-endian length + JSON (max 1 MiB). File descriptors travel
   as `SCM_RIGHTS` on the `sendmsg` that carries the frame's first byte.
 - Every connection starts with `hello {version: 1}` → `{server_version, uid,
@@ -582,7 +583,7 @@ directives are rejected instead of slipping through:
 | `import {name, files, options}` | root | report of kept/stripped/rejected items |
 | `reload` | root | re-read profile files |
 
-`vpnns status --json` prints the `status` reply. Errors are
+`vpncell status --json` prints the `status` reply. Errors are
 `{error: {code, message}}`. Limits: request size, per-uid exec rate,
 idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
 
@@ -613,22 +614,22 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
    so a later `up` gives those sessions network again. `--kill` stops their
    scopes.
 10. **MV2** for the extension (§9.1).
-11. **No `ProtectSystem`-style sandboxing for `vpnnsd`**: a private mount
+11. **No `ProtectSystem`-style sandboxing for `vpncelld`**: a private mount
     namespace would hide `/run/netns` bind mounts from the host. The
     capability bounding set is still restricted.
 
 ## 13. Lifecycle
 
-- **Unit** `vpnnsd.service`: `Type=notify`, `Restart=on-failure`,
+- **Unit** `vpncelld.service`: `Type=notify`, `Restart=on-failure`,
   `FileDescriptorStoreMax=256`, `FileDescriptorStorePreserve=yes`,
-  `RuntimeDirectory=vpnns`, `RuntimeDirectoryPreserve=yes`,
+  `RuntimeDirectory=vpncell`, `RuntimeDirectoryPreserve=yes`,
   `CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_SETUID CAP_SETGID
   CAP_NET_BIND_SERVICE CAP_KILL`.
-- **Start:** if `/run/vpnns/booted` is missing (first start since boot),
-  remove leftovers: `/run/netns/vpnns-*` without a profile, host-namespace
-  `vpnwg*`/`vpntun*` links, `vpnns-openvpn@*` units, then create the marker
+- **Start:** if `/run/vpncell/booted` is missing (first start since boot),
+  remove leftovers: `/run/netns/vpncell-*` without a profile, host-namespace
+  `vpnwg*`/`vpntun*` links, `vpncell-openvpn@*` units, then create the marker
   and start `autostart = "boot"` profiles. Otherwise **adopt**: for each
-  `vpnns-*` namespace with a valid profile, find its tunnel (wgctrl inside
+  `vpncell-*` namespace with a valid profile, find its tunnel (wgctrl inside
   the namespace, or the OpenVPN unit and management socket), take back the
   SOCKS listeners from the fd store, read the credentials, list session
   scopes. Anything that cannot be adopted is torn down. Running shells are
@@ -636,12 +637,12 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
 - **Upgrade:** `dh_installsystemd --restart-after-upgrade` restarts the
   daemon without stopping it first, so profiles and sessions stay up (adopt
   path).
-- **Uninstall** (`prerm remove`): stop `vpnns-sessions.slice`, all
-  `vpnns-openvpn@*` units and the daemon (with `down --kill` semantics),
+- **Uninstall** (`prerm remove`): stop `vpncell-sessions.slice`, all
+  `vpncell-openvpn@*` units and the daemon (with `down --kill` semantics),
   delete namespaces and links, remove the system native messaging manifest.
-  `/etc/vpnns` is removed only on purge.
+  `/etc/vpncell` is removed only on purge.
 - **NetworkManager:** the package installs
-  `/etc/NetworkManager/conf.d/vpnns.conf` with
+  `/etc/NetworkManager/conf.d/vpncell.conf` with
   `unmanaged-devices=interface-name:vpnwg*;interface-name:vpntun*`, so NM never
   touches tunnel devices during the short time they exist in the host
   namespace. (Ubuntu-specific; lives in `internal/platform` and `packaging/`.)
@@ -652,7 +653,7 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
 ## 14. In-namespace nftables (second layer)
 
 ```
-table inet vpnns {
+table inet vpncell {
   chain output  { type filter hook output  priority 0; policy drop;
                   oifname "lo" accept; oifname "<tun>" accept; }
   chain input   { type filter hook input   priority 0; policy drop;
@@ -702,7 +703,7 @@ fast and repeatable, without changing the VM. The VM covers the real-world
 part: IPv6-only endpoints, internet exit IP, and the packet-capture leak
 tests on `ens18`.
 
-### 15.2 What the VM is missing (I will ask before changing anything there)
+### 15.2 What the VM is missing (review decision: items 1, 2 and 4 approved, item 3 not)
 
 1. **No DNS server behind either VPN, and neither pushes DNS.** Needed for
    the DNS tests and the "same hostname, different server" browser test
@@ -732,10 +733,10 @@ traffic without hiding real leaks:
 
 - tailscaled marks all its sockets with fwmark `0x80000/0xff0000` (that is
   what the host's `ip rule 5210` matches). A **test-only nftables table**
-  (`inet vpnns_test`, separate from Tailscale's chains, removed afterwards)
+  (`inet vpncell_test`, separate from Tailscale's chains, removed afterwards)
   copies to `nflog` every outgoing packet on `ens18` whose mark is *not*
   `0x80000`, and the test captures `nflog:<group>`. Tailscale's packets
-  never reach the capture; nothing else is filtered out. No vpnns code sets
+  never reach the capture; nothing else is filtered out. No vpncell code sets
   `SO_MARK` (checked by the lint test).
 - Background host traffic (apt, snapd, the user's own Firefox) still
   appears. The tests therefore look for **markers**: random hostnames
@@ -757,14 +758,14 @@ tests are Go tests behind a build tag (`-tags=integration`), run with `sudo`.
 | Fail closed | Delete or down the tunnel interface; shell and container requests fail; capture on `ens18` shows only encrypted packets to the endpoint. Run with nftables on and off. |
 | DNS | Queries from shells and SOCKS reach only the profile's DNS (lab DNS logs + capture); nothing to `127.0.0.53`, avahi or `ens18` in plaintext. |
 | Privileges | In a session: uid/gid/groups match the caller, `CapEff/CapPrm/CapBnd/CapAmb` = 0, `NoNewPrivs: 1`, `setns` into the host namespace fails with `EPERM`. |
-| Access control | A second test user, in group `vpnns` but not in the profile's list: `exec` and `socks` are refused; a user outside `vpnns` cannot connect at all. |
+| Access control | A second test user, in group `vpncell` but not in the profile's list: `exec` and `socks` are refused; a user outside `vpncell` cannot connect at all. |
 | Thread safety | Thousands of concurrent SOCKS connections across 4 profiles to the overlapping `10.99.0.10`; every response must name the right server; the `SIOCGSKNS` mismatch counter must stay 0. Also run with `GOMAXPROCS=1` and with forced GC. |
 | Browser | Go WebDriver client → geckodriver, snap and tarball Firefox, headless. Containers are created through Marionette's chrome context; the mapping is set through the real popup page. Exit/identity per container; daemon stopped → error page, no direct packets. |
 | No sharing between containers | Two containers, same hostname (`web.vpn-lab.test`), different profiles, loaded at the same time and repeatedly; each sees its own page. |
 | Default tabs and private windows | Direct (they see the host's normal path), regardless of mappings. |
 | No host or LAN access | From a shell and a container: host `127.0.0.1` dev server, `127.0.0.53`, `192.168.1.139`, LAN gateway are unreachable; nftables on and off. |
 | Import safety | Fixture configs with every rejected directive; a canary hook (`up /tmp/canary`) must never run; reports must list what was stripped. |
-| Daemon restart | `systemctl restart vpnnsd` during a running shell (with `ping`/`curl` loop) and a container page load loop; both keep working; capture shows no leak. Also `kill -9` the daemon. |
+| Daemon restart | `systemctl restart vpncelld` during a running shell (with `ping`/`curl` loop) and a container page load loop; both keep working; capture shows no leak. Also `kill -9` the daemon. |
 | `down` with sessions | refuse (lists sessions), `--force` (sessions alive, no network; `up` restores it), `--kill` (sessions gone). |
 
 Plus unit tests and fuzzing for the importers, protocol framing and SOCKS

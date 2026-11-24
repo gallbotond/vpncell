@@ -1,7 +1,7 @@
 # Decisions for the build session
 
 These decisions were agreed on 2026-11-24, before the build started. They add to
-[vpnns-build-prompt.md](vpnns-build-prompt.md). Where they differ from the
+[vpncell-build-prompt.md](vpncell-build-prompt.md). Where they differ from the
 prompt, this file wins.
 
 ## Build and test environment
@@ -12,7 +12,7 @@ prompt, this file wins.
 - **Full autonomy on this host.** The VM is disposable, so any action that
   needs `sudo` is allowed without asking. Examples: install apt packages (Go,
   build tools, tcpdump, and so on), install and remove the built `.deb`, enable
-  and start systemd units, create the `vpnns` group and add the user to it, add
+  and start systemd units, create the `vpncell` group and add the user to it, add
   or change AppArmor profiles, change sysctls and kernel modules, create test
   namespaces, interfaces and firewall rules, and write native messaging
   manifests (per-user, system-wide, snap and portal entries). Document each
@@ -34,8 +34,10 @@ prompt, this file wins.
 
 ## Name
 
-- "vpnns" is still a placeholder. **Propose a final name in `DESIGN.md`.** The
-  user chooses at the design review. Use `vpnns` until then.
+- The placeholder was "vpnns". At the design review (2026-11-24) the user chose
+  **`vpncell`**, as `DESIGN.md` §1 proposed. It is used everywhere: binaries,
+  systemd units, group, paths, extension ID, Go module, docs and the GitHub
+  repository name.
 
 ## Review gate
 
@@ -119,3 +121,27 @@ prompt, this file wins.
   route, so IPv6 connections fail at once and applications fall back to IPv4
   through the tunnel. IPv6 works in a profile only when the tunnel provides it.
   Do not disable IPv6 with a sysctl.
+
+## Design review (2026-11-24)
+
+The user reviewed and approved `DESIGN.md`, with these decisions:
+
+- **Name:** `vpncell` (see "Name" above).
+- **`vpncell shell <profile>`** starts the caller's `$SHELL`, taken from the
+  client's environment, as an interactive shell (not a login shell). If
+  `$SHELL` is unset, it uses the shell from the caller's passwd entry. The
+  README documents this.
+- **Test VM changes (`DESIGN.md` §15.2):**
+  - Approved: item 1 (one DNS container per service network, pushed by both
+    VPNs), item 2 (IPv6 in the OpenVPN tunnel with NAT66) and item 4 (new VPN
+    clients through the admin UIs).
+  - Not approved: item 3 (a second server of each type). The local lab covers
+    WG+WG and OVPN+OVPN overlap.
+  - Every change on the VM is documented in the README's test section.
+- **Git:** one branch and one PR per build step; the session merges each PR
+  when that step's tests pass.
+- **Autonomy limits:** never change this host's routing tables, ip rules,
+  firewall chains or DNS settings; never commit `.env` or copy its values;
+  never upload the extension to Mozilla. A design part that does not work is
+  replaced by an alternative that keeps the no-leak and fail-closed
+  guarantees, recorded in `DESIGN.md` §12.
