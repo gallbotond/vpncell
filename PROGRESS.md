@@ -42,7 +42,8 @@ TestVMSocks, TestNoSecretsInJournal. OpenVPN and mixed sets: step 5.
 
 ## Open problems (need the user)
 
-1. **Firefox HTTPS-First DNS leak → policy decision.** With Firefox's
+1. **Firefox HTTPS-First DNS leak** — policy installed on this host at the
+   user's request (see Final report); open: package default. With Firefox's
    defaults, `http://` navigations in a mapped container make Firefox look
    up the HTTPS DNS record through the host resolver (DESIGN.md §12 item
    26). Fix: `sudo vpncell firefox-policy install` (locks
@@ -103,11 +104,12 @@ All are in README "Known limitations". The ones that matter most:
 
 ### What I need from you
 
-1. **Decide on the Firefox policy** (DESIGN.md §12 item 26): run
-   `sudo vpncell firefox-policy install` (or `install --strict` if you use
-   DoH), and decide whether the package should install it by default. The
-   build session was not allowed to install it. Then rerun
-   `make itest RUN=TestBrowserHTTPNameNoHostDNS`.
+1. ~~Decide on the Firefox policy~~ **Done (2026-11-24):** at the user's
+   request, `sudo vpncell firefox-policy install` was run on this host
+   (`network.dns.native_https_query=false`, locked; HTTPS-First stays on).
+   `TestBrowserHTTPNameNoHostDNS` now passes against the installed package.
+   Still open: whether the `.deb` should install the policy by default
+   (it does not today).
 2. **Allow the snap Firefox once** to start the native host (portal
    dialog, or the `gdbus … SetPermission webextensions true vpncell
    snap.firefox "['yes']"` command in README "Snap Firefox"); then rerun
