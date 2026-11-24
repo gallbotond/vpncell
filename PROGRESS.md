@@ -5,11 +5,8 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
-**Step 5 — OpenVPN backend**: implemented on branch `step5-openvpn`
-(importer allowlist, `vpncell-openvpn@` unit, up hook moving the tun into
-the namespace, pushed DNS, management status). Lab OpenVPN servers and the
-VM OpenVPN profile work by hand; the full suite with WireGuard, OpenVPN
-and mixed sets is running.
+**Step 6 — packaging and README**: branch `step6-packaging` (worktree
+`../vpncell-step6` during the build). Step 5 merged.
 
 ## Steps
 
@@ -20,8 +17,8 @@ and mixed sets is running.
 | 2. Terminal sessions in full | `step2-terminal-sessions` | [#2](https://github.com/gallbotond/vpncell/pull/2) | merged |
 | 3. SOCKS5 proxy | `step3-socks` | [#3](https://github.com/gallbotond/vpncell/pull/3) | merged |
 | 4. Native host + Firefox extension (MV3 spike first) | `step4-firefox` | [#4](https://github.com/gallbotond/vpncell/pull/4) | merged (2 known failures) |
-| 5. OpenVPN backend | `step5-openvpn` | | in progress |
-| 6. Packaging, README | | | |
+| 5. OpenVPN backend | `step5-openvpn` | [#5](https://github.com/gallbotond/vpncell/pull/5) | merged |
+| 6. Packaging, README | `step6-packaging` | | next |
 
 ## How to resume
 
