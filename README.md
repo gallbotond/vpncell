@@ -7,31 +7,113 @@ uses:
 - **Terminal:** `vpncell shell <profile>` opens a shell whose traffic goes
   only through that profile's VPN. `vpncell run <profile> -- <cmd>` runs one
   command.
-- **Firefox:** a WebExtension maps Multi-Account Containers to profiles
-  (build step 4).
+- **Firefox:** a WebExtension maps Multi-Account Containers to profiles.
+
+WireGuard and OpenVPN profiles are supported, side by side.
 
 Profiles may use the same private address ranges and internal hostnames; they
 never see each other, the host's `localhost` or the LAN. If a tunnel is down,
 traffic fails instead of falling back to the normal connection.
 
-Design: [DESIGN.md](DESIGN.md). Build progress: [PROGRESS.md](PROGRESS.md).
+Design: [DESIGN.md](DESIGN.md). Build history and open items:
+[PROGRESS.md](PROGRESS.md).
 
-> This README grows with each build step; step 6 completes it (install,
-> uninstall, Firefox setup, all known limitations).
-
-## Quick start (from source)
+## Install (Ubuntu 26.04 LTS)
 
 ```bash
-make build
-sudo test/scripts/dev-install.sh        # test build as a runtime systemd unit
-sudo systemctl start vpncelld
-sudo vpncell import work ~/Downloads/work.conf   # wg-quick file
-vpncell run work -- curl https://ifconfig.me
+packaging/build-deb.sh            # builds bin/vpncell_<version>_amd64.deb
+sudo apt install ./bin/vpncell_*_amd64.deb
+sudo usermod -aG vpncell "$USER"  # then log out and in again
 ```
 
-You must be in the `vpncell` group to talk to the daemon (log out and in
-after `usermod -aG vpncell $USER`), and listed in the profile's `[access]`
-section.
+The package installs:
+
+| Path | What |
+|---|---|
+| `/usr/sbin/vpncelld` | the daemon (`vpncelld.service`, enabled and started) |
+| `/usr/bin/vpncell` | the command-line client |
+| `/usr/lib/vpncell/vpncell-native` | Firefox native messaging host |
+| `/usr/lib/mozilla/native-messaging-hosts/vpncell.json` | its manifest (deb, tarball and snap Firefox) |
+| `/usr/lib/systemd/system/vpncell-openvpn@.service` | one OpenVPN tunnel per profile, started by the daemon |
+| `/usr/lib/NetworkManager/conf.d/90-vpncell.conf` | keeps NetworkManager away from tunnel devices |
+| `/usr/share/vpncell/vpncell-unsigned.xpi` | the Firefox extension (unsigned) |
+| `/etc/vpncell/vpncell.toml` | global settings (SOCKS port range) |
+
+and creates the group `vpncell`. Members may talk to the daemon; each
+profile's `[access]` list decides who may use it.
+
+Then import a profile and use it:
+
+```bash
+sudo vpncell import work ~/Downloads/work.conf      # wg-quick file
+sudo vpncell import lab ~/Downloads/lab.ovpn        # OpenVPN; --auth-file for user/password
+vpncell shell work
+```
+
+### Upgrade
+
+Installing a newer `.deb` restarts the daemon without stopping anything:
+tunnels, namespaces, SOCKS ports and sessions stay, and the new daemon
+adopts them.
+
+### Uninstall
+
+`sudo apt remove vpncell` stops all sessions and OpenVPN tunnels, removes
+every namespace, tunnel device, SOCKS listener and runtime file, and the
+native messaging manifests (system-wide and the per-user copies written by
+`vpncell firefox-setup --user`). Profiles stay in `/etc/vpncell`.
+`sudo apt purge vpncell` also removes `/etc/vpncell`, `/var/lib/vpncell`
+and the `vpncell` group. If you installed the Firefox policy, remove it
+first with `sudo vpncell firefox-policy remove`.
+
+You must be in the `vpncell` group to talk to the daemon, and listed in the
+profile's `[access]` section (`import` adds the user who ran `sudo`).
+
+### Building from source
+
+Needs `golang-go` (1.26) and Node.js/npm (for the extension).
+
+```bash
+make build extension    # bin/vpncelld, bin/vpncell, bin/vpncell-native, bin/vpncell.xpi
+make test               # unit tests
+```
+
+## Profile files
+
+`/etc/vpncell/profiles.d/<name>.toml` (root-only), written by `import`;
+edit as root and run `sudo vpncell reload`:
+
+```toml
+backend   = "wireguard"        # or "openvpn"
+autostart = "on-use"           # "boot" | "on-use" (shell, run, SOCKS bring it up) | "manual"
+
+[wireguard]
+config = "/etc/vpncell/secrets/work/wg.conf"
+# [openvpn]
+# config = "/etc/vpncell/secrets/lab/client.ovpn"
+
+[dns]
+servers    = ["10.99.0.53"]
+search     = ["corp.example"]
+use_pushed = true              # OpenVPN: also use pushed DNS (default for OpenVPN)
+
+[access]
+users  = ["alice"]
+groups = []
+
+[routing]
+routes = ["0.0.0.0/0", "::/0"] # default; a shorter list limits what the profile reaches
+
+[socks]
+port = 0                       # 0 = allocated once from socks_port_range
+
+[status]
+exit_ip_url = ""               # e.g. "https://ifconfig.me/ip" (opt-in; contacts that site)
+```
+
+A profile reaches only what is behind its tunnel: never the host's
+`localhost`, the systemd-resolved stub or the LAN. There is no setting to
+allow that.
 
 ## Commands
 
@@ -263,6 +345,10 @@ Imported configs are untrusted. Nothing from a config is ever executed.
   test build (`test/scripts/dev-install.sh`), start a local lab and use the
   test VM. `RUN=<regexp>` selects tests; `VPNCELL_TEST_VM=0` skips the VM;
   `VPNCELL_TEST_INSTALLED=1` tests the installed `.deb`.
+- `sudo test/scripts/package-test.sh`: builds two package versions,
+  installs the first, upgrades to the second while sessions run in every
+  profile set (no request may fail), removes and purges it, then installs
+  the package again and runs the whole integration suite against it.
 
 ### Local lab
 
@@ -330,7 +416,24 @@ so it cannot connect as downloaded. The fetch script rewrites it locally to
 
 ## Known limitations
 
-(Collected here as the build goes on; see also DESIGN.md §12 and §16.)
+See also DESIGN.md §12 (every change made during the build) and §16.
+
+- **Firefox: `http://` hostnames leak to the host resolver unless the
+  vpncell Firefox policy is installed** (`sudo vpncell firefox-policy
+  install`; see "Required: the vpncell Firefox policy"). It is not
+  installed automatically.
+- **Firefox: if the extension is not running** (disabled, being updated or
+  reloaded), Firefox connects mapped containers directly. An extension
+  cannot prevent this.
+- **Snap Firefox** needs the one-time portal permission (dialog or the
+  `gdbus` command in "Snap Firefox"); until then the extension cannot
+  reach the daemon and mapped containers fail closed.
+- Firefox's prefetch/speculative-connection and WebRTC settings that
+  vpncell sets are **global**: they also apply to default tabs.
+- Containers of other extensions (Temporary Containers) are never mapped
+  and connect directly.
+- Release Firefox needs a signed extension (`packaging/amo-sign.sh` with
+  your AMO keys).
 
 - Programs that ask systemd-resolved directly over the system D-Bus (for
   example `resolvectl query`) resolve through the host. glibc, curl, Go,
@@ -354,3 +457,17 @@ so it cannot connect as downloaded. The fetch script rewrites it locally to
   and succeed.
 - Sessions are not part of your logind session (no PAM session), and they
   run with the daemon's resource limits.
+- Commands that hand work to a program already running outside the profile
+  (`firefox <url>`, `code`, `xdg-open`) escape the profile.
+- IPv6 works in a profile only when its tunnel has an IPv6 address;
+  otherwise IPv6 connections fail at once (no fallback).
+- OpenVPN: `dev tap`, static-key mode, interactive logins (OTP, password
+  prompts) and encrypted private keys are not supported. DCO is turned
+  off.
+- When a profile's tunnel device disappears, the supervisor recreates it
+  (WireGuard at once, OpenVPN within about 5 s); meanwhile the profile has
+  no network (fail closed).
+- A Tailscale exit node on the host carries the (encrypted) VPN tunnel
+  packets; that is not a leak, but the tunnel then depends on it.
+- Ubuntu 26.04 LTS only; other distributions are untested (Ubuntu-specific
+  code is in `internal/platform`).

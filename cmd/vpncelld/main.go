@@ -35,6 +35,14 @@ func main() {
 			os.Exit(session.RunExec(os.Args[2:]))
 		case "ovpn-hook":
 			os.Exit(runOVPNHook(os.Args[2:]))
+		case "teardown":
+			// Used by the package's prerm on removal.
+			log := slog.New(daemon.NewJournalHandler(os.Stderr, slog.LevelInfo))
+			if err := daemon.Teardown(log); err != nil {
+				fmt.Fprintln(os.Stderr, "vpncelld teardown:", err)
+				os.Exit(1)
+			}
+			return
 		case "version", "--version":
 			fmt.Println(version)
 			return

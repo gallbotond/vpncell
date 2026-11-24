@@ -1,0 +1,31 @@
+#!/bin/sh
+# vpncell postinst
+set -e
+case "$1" in
+configure)
+	getent group vpncell >/dev/null || addgroup --system vpncell >/dev/null
+	install -d -m 0755 /etc/vpncell/profiles.d
+	install -d -m 0700 /etc/vpncell/secrets
+	install -d -m 0700 /var/lib/vpncell
+	if [ -d /run/systemd/system ]; then
+		systemctl daemon-reload >/dev/null 2>&1 || true
+		# NetworkManager: never manage tunnel devices (they exist briefly in
+		# the host namespace before they move into a profile).
+		systemctl try-reload-or-restart NetworkManager.service >/dev/null 2>&1 || true
+		systemctl enable vpncelld.service >/dev/null 2>&1 || true
+		if [ -n "$2" ]; then
+			# Upgrade: restart without stopping profiles. The new daemon
+			# adopts namespaces, tunnels, SOCKS ports and sessions.
+			systemctl restart vpncelld.service || true
+		else
+			systemctl start vpncelld.service || true
+		fi
+	fi
+	if [ -z "$2" ]; then
+		echo "vpncell: add users to the 'vpncell' group (sudo usermod -aG vpncell USER; log in again),"
+		echo "vpncell: import a profile with: sudo vpncell import NAME FILE"
+		echo "vpncell: for Firefox see /usr/share/doc/vpncell/README.md (extension, firefox-policy)"
+	fi
+	;;
+esac
+exit 0

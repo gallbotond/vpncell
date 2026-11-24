@@ -723,6 +723,17 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     the tunnel missing when the management state is CONNECTED but the
     device is gone from the namespace, and the supervisor restarts the unit
     (found by the fail-closed tests; recovery takes about 5 s).
+30. **Packaging with `dpkg-deb`** (§13, step 6): `packaging/build-deb.sh`
+    builds the `.deb` from the Go binaries and the extension directly
+    (no debhelper; Go modules are not packaged for offline builds). The
+    maintainer scripts do what `dh_installsystemd --restart-after-upgrade`
+    would: `prerm` does nothing on upgrade, `postinst` restarts the daemon,
+    which adopts everything. On removal, `prerm` stops `vpncell.slice`
+    (the implicit parent of `vpncell-sessions.slice`), the OpenVPN units
+    and the daemon, then runs `vpncelld teardown` (namespaces, links,
+    runtime files, per-user manifests). The NetworkManager drop-in lives
+    in `/usr/lib/NetworkManager/conf.d/` (not a conffile). The Firefox
+    policy (item 26) is not installed by the package.
 
 ## 13. Lifecycle
 

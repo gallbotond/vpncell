@@ -1,0 +1,17 @@
+#!/bin/sh
+# vpncell prerm: on removal, tear everything down. On upgrade, do nothing:
+# profiles and sessions keep running and the new daemon adopts them.
+set -e
+case "$1" in
+remove|deconfigure)
+	if [ -d /run/systemd/system ]; then
+		# vpncell-sessions.slice lives under the implicit parent vpncell.slice.
+		systemctl stop vpncell.slice vpncell-sessions.slice >/dev/null 2>&1 || true
+		systemctl stop 'vpncell-openvpn@*.service' >/dev/null 2>&1 || true
+		systemctl disable --now vpncelld.service >/dev/null 2>&1 || true
+		systemctl clean --what=fdstore vpncelld.service >/dev/null 2>&1 || true
+	fi
+	/usr/sbin/vpncelld teardown || true
+	;;
+esac
+exit 0
