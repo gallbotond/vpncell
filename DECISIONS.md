@@ -9,11 +9,15 @@ prompt, this file wins.
 - **Run everything directly on this host.** It is a disposable Proxmox VM set up
   to look like a work laptop: Ubuntu 26.04.1 LTS, KVM, LXD, Docker, passwordless
   sudo. No extra test VM is needed.
-- **Allowed without asking:** install apt packages (Go, build tools, tcpdump,
-  and so on), install and remove the built `.deb`, enable and start the systemd
-  unit, create the `vpnns` group and add the user to it, add or change AppArmor
-  profiles, write native messaging manifests (per-user, system-wide, snap and
-  portal entries). Document each AppArmor change, as the prompt requires.
+- **Full autonomy on this host.** The VM is disposable, so any action that
+  needs `sudo` is allowed without asking. Examples: install apt packages (Go,
+  build tools, tcpdump, and so on), install and remove the built `.deb`, enable
+  and start systemd units, create the `vpnns` group and add the user to it, add
+  or change AppArmor profiles, change sysctls and kernel modules, create test
+  namespaces, interfaces and firewall rules, and write native messaging
+  manifests (per-user, system-wide, snap and portal entries). Document each
+  AppArmor change, as the prompt requires. The only limits are the ones below:
+  keep the host's network connection and Tailscale working.
 - The host's own network connection must keep working throughout. This is
   already a requirement of the prompt; on this host it also keeps the session
   reachable.
