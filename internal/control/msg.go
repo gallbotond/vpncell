@@ -62,12 +62,13 @@ type Response struct {
 	UID           uint32 `json:"uid,omitempty"`
 	Admin         bool   `json:"admin,omitempty"`
 
-	Profiles []ProfileInfo   `json:"profiles,omitempty"`
-	Status   []ProfileStatus `json:"status,omitempty"`
-	Socks    *SocksInfo      `json:"socks,omitempty"`
-	Report   *ImportReport   `json:"report,omitempty"`
-	Event    *Event          `json:"event,omitempty"`
-	Message  string          `json:"message,omitempty"`
+	Profiles []ProfileInfo     `json:"profiles,omitempty"`
+	Status   []ProfileStatus   `json:"status,omitempty"`
+	Socks    *SocksInfo        `json:"socks,omitempty"`
+	Report   *ImportReport     `json:"report,omitempty"`
+	Event    *Event            `json:"event,omitempty"`
+	Message  string            `json:"message,omitempty"`
+	Debug    map[string]uint64 `json:"debug,omitempty"`
 
 	// session
 	SessionID string `json:"session_id,omitempty"`

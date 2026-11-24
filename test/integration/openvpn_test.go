@@ -8,3 +8,4 @@ func setupOpenVPNLab() error       { return nil }
 func setupOpenVPNVM() error        { return nil }
 func openVPNLabSets() []profileSet { return nil }
 func openVPNVMProfiles() []string  { return nil }
+func openVPNStressProfiles() [][2]string { return nil }
