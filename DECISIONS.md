@@ -72,8 +72,15 @@ prompt, this file wins.
   `tailscale serve` returns 404 for requests addressed to the IP. The user
   reaches the same UIs at `http://localhost:51821` and `http://localhost:18080`
   on their own computer through an SSH tunnel; those addresses do not work on
-  this host. Log-in credentials come from the user; never store them in the
-  repository.
+  this host.
+- **Credentials for the admin UIs** are in `.env` in the repository root. It
+  is ignored by git (`.gitignore`) and readable only by the user. These are
+  test services only, so the build session may use the credentials freely to
+  log in and to create VPN clients and profiles for the tests. The file is not
+  in `KEY=VALUE` format; it has two blocks separated by a blank line, wg-easy
+  first and openvpn-ui second, each with three lines: the URL, the username
+  and the password. Never commit `.env`, and never copy its values into code,
+  logs, commit messages, pull requests or test fixtures; read them at runtime.
 - **The VPN endpoints are IPv6 only.** The VM has no public IPv4, only
   `2600:1900:4021:668::`. wg-easy and OpenVPN clients must connect to that
   address. This host has working IPv6, so the tests can run from here.
