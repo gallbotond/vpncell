@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gallbotond/vpncell/internal/brand"
 	"github.com/gallbotond/vpncell/internal/control"
 )
 
@@ -89,6 +90,53 @@ func buildImport(name, path, authFile string) (*control.ImportRequest, error) {
 	return req, nil
 }
 
+// nativeManifest is the Firefox native messaging manifest for vpncell-native.
+func nativeManifest(path string) string {
+	return fmt.Sprintf(`{
+  "name": %q,
+  "description": "vpncell native messaging host",
+  "path": %q,
+  "type": "stdio",
+  "allowed_extensions": [%q]
+}
+`, brand.NativeHost, path, brand.ExtensionID)
+}
+
+// nativeBinary finds vpncell-native: next to this binary, else the packaged path.
+func nativeBinary() string {
+	if exe, err := os.Executable(); err == nil {
+		p := filepath.Join(filepath.Dir(exe), "vpncell-native")
+		if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+			return p
+		}
+	}
+	return brand.NativeBinary
+}
+
 func cmdFirefoxSetup(args []string) error {
-	return fmt.Errorf("firefox-setup is not available yet")
+	if len(args) != 1 || (args[0] != "--user" && args[0] != "--remove-user") {
+		return fmt.Errorf("usage: vpncell firefox-setup --user | --remove-user")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(home, ".mozilla", "native-messaging-hosts")
+	path := filepath.Join(dir, brand.NativeHost+".json")
+	if args[0] == "--remove-user" {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		fmt.Println("removed", path)
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(nativeManifest(nativeBinary())), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", path)
+	fmt.Println("note: the snap Firefox does not read ~/.mozilla; it uses the system-wide manifest in " + brand.SystemNMHDir + " through the desktop portal.")
+	return nil
 }

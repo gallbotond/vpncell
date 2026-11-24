@@ -120,6 +120,100 @@ For every configured profile the daemon listens on `127.0.0.1:<port>`
   `autostart = "on-use"` the first request brings the profile up.
 - UDP ASSOCIATE is not supported.
 
+## Firefox
+
+The extension maps **Multi-Account Containers** to profiles. Every request
+from a tab in a mapped container goes through that profile's SOCKS proxy;
+names are resolved inside the profile (`proxyDNS`).
+
+- Install the add-on (`bin/vpncell.xpi` from `make extension`; it is
+  unsigned, see "Signing" below) and the native messaging host. The `.deb`
+  installs the host manifest system-wide in
+  `/usr/lib/mozilla/native-messaging-hosts/vpncell.json`; `vpncell
+  firefox-setup --user` also writes a per-user copy to
+  `~/.mozilla/native-messaging-hosts/`.
+- Open the toolbar popup and choose a profile per container. The popup shows
+  each container's profile, state (up, connecting, down, failed or
+  blocked) and exit IP (if the profile sets `[status] exit_ip_url`), and
+  has Up/Down buttons.
+- **Only Multi-Account Containers can be mapped.** Default tabs and private
+  windows always connect directly. Containers made by other extensions (for
+  example Temporary Containers) get a new ID each time, so they are never
+  mapped and connect directly. Deleting a container removes its mapping;
+  renaming keeps it (mappings are keyed by `cookieStoreId` and stored in
+  `storage.local`, never synced).
+- **Fail closed:** if a mapped container's profile is unknown, down with
+  `autostart = "manual"`, or the daemon has been unreachable for more than
+  30 s, its requests get a proxy on `127.0.0.1:1` that always fails, the
+  toolbar icon shows a red "!" and a notification names the profile. They
+  never go direct. During the first 30 s of a daemon restart the cached
+  proxy details stay in use (the SOCKS ports stay bound, so connections
+  wait).
+- Requests from mapped containers to the host's loopback (`localhost`,
+  `127.0.0.0/8`, `[::1]`) are cancelled: Firefox never sends loopback
+  addresses through a proxy, so they would otherwise go to the host.
+
+### Required: the vpncell Firefox policy
+
+With Firefox's default settings, opening an `http://` address in a mapped
+container makes Firefox (its HTTPS-First mode) look up the site's HTTPS DNS
+record **itself, through the host's resolver**, outside the proxy. The
+hostname then leaves through your normal connection (a DNS leak). This
+happens for public and private names; `https://` addresses are not
+affected. An extension cannot change the prefs involved, so vpncell ships a
+Firefox enterprise policy:
+
+```bash
+sudo vpncell firefox-policy install
+```
+
+It adds `network.dns.native_https_query = false` (locked) to
+`/etc/firefox/policies/policies.json`, keeping any other policies in that
+file; restart Firefox afterwards. HTTPS-First stays on. If you use
+DNS-over-HTTPS in Firefox, use `install --strict`, which also turns
+HTTPS-First off (otherwise the lookup goes to your DoH server).
+`sudo vpncell firefox-policy remove` takes the entries out again. The
+policy applies to every Firefox profile on the machine (deb, tarball and
+snap builds read this file).
+
+**This is not installed automatically** (it changes Firefox for all tabs);
+without it, the leak above is a known limitation.
+
+### Snap Firefox
+
+Ubuntu's snap Firefox starts native messaging hosts through the desktop
+portal (`org.freedesktop.portal.WebExtensions`), which reads the
+system-wide manifest (not `~/.mozilla`, which the snap does not use). The
+first time, the portal asks in a dialog whether Firefox may start
+"vpncell"; answer **Allow**. The answer is stored in the portal's permission
+store. You can also grant it from a terminal in your desktop session:
+
+```bash
+gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore --object-path /org/freedesktop/impl/portal/PermissionStore --method org.freedesktop.impl.portal.PermissionStore.SetPermission webextensions true vpncell snap.firefox "['yes']"
+```
+
+### Traffic that could bypass the proxy
+
+| Path | How vpncell handles it |
+|---|---|
+| The extension is not running (disabled, being updated or reloaded) | Firefox then has no proxy listener and connects directly. **An extension cannot prevent this**; it is the main limitation of the browser part. |
+| An error inside the proxy listener | Caught; mapped containers get the failing proxy. |
+| Startup (tabs restored before the mapping is loaded) | The listener waits for the stored mapping and briefly for the daemon; a mapped container is never answered "direct". |
+| `network.proxy.failover_direct` | Tested: with the daemon stopped and with the tunnel removed, mapped containers show an error page and the capture shows no direct packet. |
+| DNS for proxied requests, DNS-over-HTTPS | `proxyDNS: true`: the SOCKS server resolves inside the profile. With TRR-only mode, lab names still load in containers. A failed lookup is reported to Firefox as a general proxy failure, because "host unreachable" makes Firefox retry the name through the host resolver. |
+| HTTPS-First's HTTPS-record lookup for `http://` addresses | **Leaks the hostname to the host resolver** unless the vpncell Firefox policy is installed (see above). |
+| DNS prefetch, link prefetch, speculative connections | Turned off with `privacy.network.networkPredictionEnabled = false`. This is a **global** setting: it also applies to default tabs. |
+| HTTP/3 (QUIC) | Firefox does not use HTTP/3 through a SOCKS proxy; the test loads an HTTP/3 site in a container and sees no UDP/443 on the host interface. |
+| WebRTC | `privacy.network.webRTCIPHandlingPolicy = "disable_non_proxied_udp"` (global): WebRTC in a proxied tab uses only the proxy; default tabs keep working. Tested with a STUN request from a mapped container: no UDP to the STUN server, no host candidates. |
+| Connection, cache and DNS sharing between containers | Firefox keys them by container and proxy; the test loads the same hostname in two containers at the same time and each gets its own server. |
+
+### Signing
+
+`make extension` builds an unsigned `bin/vpncell.xpi`. Release Firefox only
+installs signed add-ons; `packaging/amo-sign.sh` signs it as an *unlisted*
+add-on with your own AMO API keys. (The build never uploads anything to
+Mozilla.)
+
 ## Import safety
 
 Imported configs are untrusted. The WireGuard importer keeps only an
@@ -154,16 +248,19 @@ group).
 
 ### Leak captures
 
-Captures run on the physical interface with `tcpdump`. Tailscale's own
-traffic is excluded with a BPF filter on the UDP ports `tailscaled` owns
-(found with `ss -ulpn`); nothing else is excluded. A leak is a packet to a
-test destination (`10.99.0.0/24`, `172.30.0.0/16`, tunnel ranges), a marker
-string (random `leak…` hostnames) in clear text, or any packet to the VPN
-endpoint that is not UDP 51820/1194. One exception: ICMPv6 "destination
-unreachable" errors that quote a UDP packet *from* the VPN port. The host
-kernel sends them when the server keeps sending keepalives to the closed
-port of an earlier client; they carry no profile traffic. No host firewall
-rule is added.
+Captures run on the physical interface from an `AF_PACKET` socket inside
+the test binary, which writes a pcap file; `tcpdump -r` only reads it
+afterwards. (`tcpdump` itself is not used to capture: Ubuntu confines it with
+an AppArmor profile that refuses signals from other confined processes, so
+it could not be stopped.) Tailscale's own traffic is left out by the UDP
+ports `tailscaled` owns (found with `ss -ulpn`); nothing else is left out. A
+leak is a packet to a test destination (`10.99.0.0/24`, `172.30.0.0/16`,
+tunnel ranges), a marker string (random `leak…` hostnames and paths) in
+clear text, or any packet to the VPN endpoint that is not UDP 51820/1194.
+One exception: ICMPv6 "destination unreachable" errors that quote a UDP
+packet *from* the VPN port. The host kernel sends them when the server keeps
+sending keepalives to the closed port of an earlier client; they carry no
+profile traffic. No host firewall rule is added.
 
 ### Test VM changes
 

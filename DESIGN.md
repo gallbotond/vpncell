@@ -371,6 +371,23 @@ has announced no end date for MV2. If a spike at the start of step 4 shows
 that MV3 keeps the page alive while a native port is open, I will switch and
 say so.
 
+**Spike result (2026-11-24, step 4; code in `test/spikes/mv3`).** A minimal
+MV3 extension (event page, `proxy.onRequest` for `<all_urls>`, a native port
+to a logging host, a 5 s timer that posts on the port) ran headless in the
+tarball Firefox 161 with `extensions.background.idle.timeout = 30`:
+
+- Run 1 (100 s): the page stayed alive; ticks continued without a gap and
+  there was one page instance.
+- Run 2 (70 s): ticks stopped about 30 s after start; the page was
+  suspended although the native port was open. The next proxied navigation
+  woke a **new** page instance (in-memory state gone, new native port), and
+  that request had to wait for the page to start.
+
+`proxy.onRequest` and native messaging work in MV3, but an open native port
+does not reliably keep the event page alive, so the in-memory cache and the
+daemon event stream can be lost at any time. **Decision: MV2 with a
+persistent background page**, as designed.
+
 ### 9.2 Behaviour
 
 - Mapping `cookieStoreId → profile` in `storage.local`. Only
@@ -661,6 +678,37 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     errors that quote a UDP packet *from* the VPN port (the host's reply to
     server keepalives aimed at a closed client port) are not counted as
     leaks.
+23. **Capture inside the test binary** (§15.3): `tcpdump`'s AppArmor
+    profile on Ubuntu 26.04 refuses signals from other confined processes,
+    so a capture started by the tests could not be stopped. The tests now
+    capture with an `AF_PACKET` socket and write pcap themselves; the
+    Tailscale exclusion (tailscaled's UDP ports) is applied in Go.
+24. **Snap portal permission needs the user** (§9.4): pre-granting the
+    WebExtensions portal permission over D-Bus from the build session was
+    refused by the session's safety policy (it answers a consent dialog on
+    the user's behalf). The user grants it once (README, "Snap Firefox");
+    until then the snap browser tests fail with a clear "known failure"
+    message.
+25. **SOCKS answers "general failure" for every failed named request**
+    (§7). With reply 0x04 (host unreachable) after a failed in-profile DNS
+    lookup, Firefox treats the request as a DNS failure and then resolves
+    the name itself through the host resolver (A/AAAA queries seen on the
+    physical interface). With 0x01 it does not.
+26. **Firefox's HTTPS-First looks names up outside the proxy** (§9.6).
+    Firefox 161, default settings: every `http://` navigation in a mapped
+    container makes Firefox query the host's HTTPS (type 65) record through
+    the host resolver, for public and private names alike, although the tab
+    uses SOCKS with `proxyDNS`. `https://` URLs do not. Turning off
+    `network.dns.native_https_query` stops it (HTTPS-First stays on); with
+    DNS-over-HTTPS enabled, HTTPS-First itself (`dom.security.https_first`)
+    must also be off. No WebExtension API reaches these prefs, so vpncell
+    provides `vpncell firefox-policy install [--strict]`, which adds locked
+    prefs to `/etc/firefox/policies/policies.json` (read by the deb, tarball
+    and snap Firefox). Installing it is a system-wide change to the user's
+    Firefox and was **left to the user** (the build session's safety policy
+    refused to make it); until it is installed,
+    `TestBrowserHTTPNameNoHostDNS` reports a known failure. The other
+    browser tests set the same pref in their test profile.
 
 ## 13. Lifecycle
 

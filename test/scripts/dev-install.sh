@@ -26,5 +26,17 @@ sed -e "s|@DAEMON@|$dest/vpncelld|g" "$repo/packaging/systemd/vpncelld.service" 
 if [[ -f "$repo/packaging/systemd/vpncell-openvpn@.service" ]]; then
   sed -e "s|@DAEMON@|$dest/vpncelld|g" "$repo/packaging/systemd/vpncell-openvpn@.service" > "/run/systemd/system/vpncell-openvpn@.service"
 fi
+# System-wide native messaging manifest (deb and tarball Firefox, and the snap
+# through the desktop portal). The .deb installs the same file.
+install -d -m 0755 /usr/lib/mozilla/native-messaging-hosts
+cat > /usr/lib/mozilla/native-messaging-hosts/vpncell.json <<JSON
+{
+  "name": "vpncell",
+  "description": "vpncell native messaging host",
+  "path": "$dest/vpncell-native",
+  "type": "stdio",
+  "allowed_extensions": ["vpncell@gallbotond.github.io"]
+}
+JSON
 systemctl daemon-reload
 echo "installed test build to $dest"
