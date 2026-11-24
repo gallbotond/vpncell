@@ -82,6 +82,8 @@ func (r *rtProfile) getState() string {
 // Options configure the daemon.
 type Options struct {
 	Log *slog.Logger
+	// Reload receives SIGHUP: re-read profiles.
+	Reload <-chan os.Signal
 }
 
 // Run starts the daemon and blocks until ctx is done.
@@ -146,6 +148,14 @@ func Run(ctx context.Context, opt Options) error {
 	go d.serveControl(ln)
 	go d.supervise()
 	go d.watchHostNetwork()
+	if opt.Reload != nil {
+		go func() {
+			for range opt.Reload {
+				d.log.Info("SIGHUP: reloading profiles")
+				d.loadProfiles()
+			}
+		}()
+	}
 	sdNotify("READY=1\nSTATUS=running")
 	d.log.Info("vpncelld ready", "socket", brand.ControlSock)
 	<-ctx.Done()

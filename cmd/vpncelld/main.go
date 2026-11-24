@@ -51,9 +51,14 @@ func main() {
 	log := slog.New(daemon.NewJournalHandler(os.Stderr, level))
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-	signal.Ignore(syscall.SIGPIPE, syscall.SIGHUP)
+	// Never signal.Ignore here: ignored signals are inherited across exec, so
+	// sessions would start with SIGHUP ignored. Handled signals are reset to
+	// the default in every child.
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	opt := daemon.Options{Log: log, Reload: hup}
 	log.Info("starting", "version", version)
-	if err := daemon.Run(ctx, daemon.Options{Log: log}); err != nil {
+	if err := daemon.Run(ctx, opt); err != nil {
 		log.Error("fatal", "err", err)
 		os.Exit(1)
 	}

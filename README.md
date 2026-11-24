@@ -45,6 +45,55 @@ section.
 | `sudo vpncell import [--user u] [--group g] <name> <file>` | import a `wg-quick` or `.ovpn` config |
 | `sudo vpncell reload` | re-read `/etc/vpncell/profiles.d` |
 
+## Terminal sessions
+
+- `vpncell shell <profile>` starts your `$SHELL` (taken from the
+  environment of the `vpncell` command) as an **interactive, non-login**
+  shell (`$SHELL -i`). If `$SHELL` is unset, the shell from your passwd
+  entry is used. The shell gets `VPNCELL_PROFILE=<profile>`, so a prompt can
+  show it, for example in `~/.bashrc`:
+  `PS1='${VPNCELL_PROFILE:+[$VPNCELL_PROFILE] }'"$PS1"`.
+- `vpncell run <profile> -- <cmd>` runs one command. It uses a terminal when
+  stdin and stdout are terminals (`-t` / `-T` force it on or off);
+  otherwise your stdin, stdout and stderr are passed to the command directly.
+- Sessions get a new pseudo-terminal (like `ssh`); Ctrl-C, Ctrl-Z and job
+  control work, window size changes are passed on, and the client exits with
+  the command's exit code (128 + signal number if it was killed). Signals
+  sent to the `vpncell` process (SIGTERM, SIGHUP, …) are passed on; if the
+  client dies, the session gets SIGHUP.
+- The command runs with your uid, gid and groups, no capabilities, an empty
+  bounding set and `no_new_privs`, in your working directory and with your
+  environment and umask. Resource limits are the daemon's.
+- Sessions live in systemd scopes (`vpncell-sessions.slice`), so they keep
+  running when the daemon restarts. `vpncell status` lists them.
+- `vpncell down <profile>` refuses while sessions run and lists them.
+  `--force` removes the tunnel; the sessions stay but have no network until
+  the next `vpncell up`. `--kill` ends them. Only root may `--force` or
+  `--kill` when sessions of other users are affected.
+- On start, `vpncell shell` warns that commands which hand work to a program
+  already running outside the profile (`firefox <url>`, `code`,
+  `xdg-open`) escape the profile.
+
+### What works inside a profile shell
+
+A profile has its own network namespace and a private mount namespace (for
+the resolver files). Measured on Ubuntu 26.04 with a GNOME session
+(`TestDesktopPrograms`):
+
+| Check | outside a profile | inside a profile |
+|---|---|---|
+| X11 through the abstract socket `@/tmp/.X11-unix/X0` | works | fails (abstract sockets belong to the network namespace) |
+| X11 through the path socket `/tmp/.X11-unix/X0` (Xlib falls back to it) | works | works |
+| Wayland socket | works | works |
+| D-Bus session bus (`gdbus`) | works | works |
+| `notify-send` (AppArmor-confined) | works | fails |
+| `systemctl --user` | works | works |
+| system D-Bus (`busctl`) | works | works |
+| `resolvectl query` (resolved over D-Bus) | works | works — **resolves through the host** |
+
+`localhost` is the profile's own loopback, not the host's. ssh-agent and
+gpg-agent (path sockets) work.
+
 ## Import safety
 
 Imported configs are untrusted. The WireGuard importer keeps only an
@@ -124,3 +173,17 @@ of every edited file are next to it as `*.bak-vpncell-<timestamp>`):
   Python and Firefox do not do this.
 - `sudo` and other setuid programs do not work inside a profile
   (`no_new_privs`).
+- **AppArmor-confined programs cannot connect to the host's path sockets
+  from a profile shell.** The session's private mount namespace makes the
+  peer socket's path "disconnected" for AppArmor, so a confined program's
+  connect to, for example, the session D-Bus or Wayland socket is denied
+  (`apparmor="DENIED" … info="Failed name lookup - disconnected path"`).
+  Unconfined programs (most of the desktop) are not affected, and confined
+  network tools (`dig`, `nslookup`, `nc`) work because they use no path
+  sockets. Affected on this host: `notify-send`, snap applications
+  (Firefox, Thunderbird, Teams), `papers`, and other programs with an
+  enforcing AppArmor profile (`sudo aa-status`).
+- Abstract Unix sockets (X11's `@/tmp/.X11-unix/X0`, multipathd, iscsiadm)
+  are not reachable from a profile; X11 clients fall back to the path socket.
+- Sessions are not part of your logind session (no PAM session), and they
+  run with the daemon's resource limits.

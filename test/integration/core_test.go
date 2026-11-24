@@ -241,6 +241,9 @@ func TestAccessControlExec(t *testing.T) {
 // Required test "Import safety" (WireGuard): hooks and unsafe keys are
 // stripped or rejected, and nothing from the config ever runs.
 func TestImportSafetyWireGuard(t *testing.T) {
+	// t-evil reuses the wg1 client key, which takes over the lab server's
+	// session; restart t-wg1 afterwards so later tests get a fresh handshake.
+	defer func() { ensureDown(t, "t-wg1"); ensureUp(t, "t-wg1") }()
 	canary := filepath.Join(os.TempDir(), "vpncell-canary-"+marker())
 	defer os.Remove(canary)
 	base, err := os.ReadFile(theLab.Servers["wg1"].ClientConfig)
