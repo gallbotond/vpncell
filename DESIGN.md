@@ -642,6 +642,14 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
 17. **Main thread pinned** (§6): `vpncelld` locks its main goroutine to the
     main thread, so a namespace worker can never wedge the main thread in a
     profile namespace.
+18. **SIGHUP reloads profiles; no ignored signals** (§13). Ignored signal
+    dispositions are inherited across `exec`, so the daemon must never
+    `signal.Ignore` anything: a session would start with SIGHUP ignored and
+    could not trap it. `ExecReload` sends SIGHUP.
+19. **AppArmor and the session mount namespace** (§5, §8.3). Confined
+    programs cannot connect to host path sockets from a session (AppArmor
+    reports a "disconnected path"). The private mount namespace is required
+    for per-profile DNS, so this is documented as a limitation instead.
 
 ## 13. Lifecycle
 
