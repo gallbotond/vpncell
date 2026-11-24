@@ -60,6 +60,30 @@ prompt, this file wins.
   IAP.) Inspect the VM before designing the tests, and decide from what is
   there: which VPN servers run, which networks and services are behind them,
   and whether the overlapping setup below already exists.
+- **What runs there** (as of 2026-11-24, all in Docker): `wg-easy` (WireGuard,
+  UDP 51820), `openvpn` (UDP 1194), `openvpn-ui`, and test services behind the
+  VPNs (`whoami`, `nginx`, `iperf3`).
+- **Admin UIs, reachable only over the tailnet.** This host is on the user's
+  tailnet as `man-ubser26-work`. `tailscale serve` on the VM publishes:
+  - wg-easy: `http://free-vm:51821`
+  - openvpn-ui: `http://free-vm:18080`
+
+  Use the name `free-vm` (or `free-vm.tail4e944c.ts.net`), not the tailnet IP:
+  `tailscale serve` returns 404 for requests addressed to the IP. The user
+  reaches the same UIs at `http://localhost:51821` and `http://localhost:18080`
+  on their own computer through an SSH tunnel; those addresses do not work on
+  this host. Log-in credentials come from the user; never store them in the
+  repository.
+- **The VPN endpoints are IPv6 only.** The VM has no public IPv4, only
+  `2600:1900:4021:668::`. wg-easy and OpenVPN clients must connect to that
+  address. This host has working IPv6, so the tests can run from here.
+- **Tailscale runs on this host.** The build and the tests must not disturb it:
+  leave its routing table, firewall chains and DNS settings alone, so that the
+  session stays reachable. Packet captures in the leak tests will also see
+  Tailscale's own traffic (WireGuard on UDP 41641, DERP relays over HTTPS);
+  exclude it explicitly and document how, without counting it as a leak or
+  hiding real leaks. Never use the VM's tailnet address as a VPN endpoint in
+  tests.
 - The required tests still apply in full: overlapping `10.99.0.0/24` behind two
   profiles, WireGuard and OpenVPN, and mixed setups. If the VM does not provide
   what a test needs, say exactly what is missing and ask before changing the
