@@ -69,6 +69,8 @@ type rtProfile struct {
 	upSince time.Time
 	backoff time.Duration
 	retryAt time.Time
+	// pushedKey remembers the last pushed DNS written to the resolver files.
+	pushedKey string
 }
 
 func (r *rtProfile) getState() string {

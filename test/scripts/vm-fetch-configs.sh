@@ -17,5 +17,8 @@ x=$(curl -fsS -c "$J" -b "$J" "$U/login" | grep -o 'name="_xsrf" value="[^"]*"' 
 curl -fsS -c "$J" -b "$J" -o /dev/null --data-urlencode "login=$OVUI_USER" --data-urlencode "password=$OVUI_PASS" --data-urlencode "_xsrf=$x" "$U/login"
 curl -fsS -c "$J" -b "$J" "$U/certificates/vpncell-test" > "$tmp/vm-ovpn.ovpn"
 grep -q '^client' "$tmp/vm-ovpn.ovpn"
+# openvpn-ui writes the server's ta.key as <tls-crypt>, but the VM's server
+# uses "tls-auth pki/ta.key 0"; use the same key as tls-auth (direction 1).
+sed -i -e 's|^<tls-crypt>|key-direction 1\n<tls-auth>|' -e 's|^</tls-crypt>|</tls-auth>|' "$tmp/vm-ovpn.ovpn"
 sudo install -m 0600 "$tmp/vm-wg.conf" "$tmp/vm-ovpn.ovpn" "$out/"
 echo "configs in $out"

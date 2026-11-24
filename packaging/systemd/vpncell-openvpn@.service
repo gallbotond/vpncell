@@ -1,0 +1,23 @@
+[Unit]
+Description=vpncell OpenVPN tunnel for profile %i
+Documentation=https://github.com/gallbotond/vpncell
+After=network-online.target
+Wants=network-online.target
+# Started and stopped by vpncelld; not part of vpncelld.service, so the
+# tunnel keeps running while the daemon restarts.
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/sbin/openvpn --suppress-timestamps --config /run/vpncell/profiles/%i/openvpn.conf
+Restart=on-failure
+RestartSec=2s
+# openvpn runs vpncell's hook (`vpncelld ovpn-hook %i`), which moves the tun
+# device into the profile namespace: it needs CAP_NET_ADMIN and, for setns,
+# CAP_SYS_ADMIN.
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_DAC_OVERRIDE
+DeviceAllow=/dev/net/tun rw
+ProtectHome=yes
+ProtectSystem=full
+PrivateTmp=yes
+SyslogIdentifier=vpncell-openvpn@%i

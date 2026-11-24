@@ -252,7 +252,20 @@ func (d *Daemon) refreshStatus(p *profile.Profile, rt *rtProfile) backend.Status
 	}
 	rt.mu.Lock()
 	rt.status = st
+	key := fmt.Sprint(st.PushedDNS, st.PushedSearch)
+	changed := p.UsePushedDNS() && key != rt.pushedKey
+	if changed {
+		rt.pushedKey = key
+	}
 	rt.mu.Unlock()
+	if changed {
+		// OpenVPN pushed (new) DNS settings: rewrite the resolver files.
+		// The hook does this too, so it also works while the daemon is
+		// restarting.
+		if err := d.writeDNSFiles(p, st.PushedDNS, st.PushedSearch); err != nil {
+			d.log.Warn("write DNS files", "profile", p.Name, "err", err)
+		}
+	}
 	d.setState(p.Name, rt, st.State, "")
 	return st
 }
