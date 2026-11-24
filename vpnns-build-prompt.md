@@ -2,6 +2,8 @@
 
 <!-- "vpnns" is a placeholder name. Rename it if you like. -->
 
+> **Read [DECISIONS.md](DECISIONS.md) first.** It records decisions made after this prompt was written, and it wins where the two differ.
+
 ## What we are building
 
 Build **vpnns**, a Linux tool that keeps several VPN connections up at the same time, each fully separate from the others, and lets me choose which one a program uses:
@@ -68,8 +70,12 @@ A WebExtension cannot put a tab into a network namespace, so the browser goes th
 
 ### 7. The Firefox extension
 
-- It uses `browser.contextualIdentities` to list containers and stores a mapping from container (`cookieStoreId`) to profile.
+- It uses `browser.contextualIdentities` to list containers and stores a mapping from container (`cookieStoreId`) to profile. Store the mapping in `storage.local`, never `storage.sync`, so it is not synced to other machines.
+- **Only Multi-Account Containers can be mapped.** Default tabs (no container) and private windows always connect directly, and the UI offers no mapping for them.
+- If a mapped container is deleted, remove its mapping. If it is renamed, keep the mapping, because it is keyed by `cookieStoreId`. Containers made by other extensions, such as Temporary Containers, have new IDs each time, so they are unmapped and connect directly. Document this.
 - It registers `browser.proxy.onRequest` for `<all_urls>`. For a mapped container it returns `{type: "socks", host: "127.0.0.1", port, username, password, proxyDNS: true}`. Unmapped containers and the default container get `{type: "direct"}`.
+- `proxy.onRequest` runs for every request, so it must answer from an in-memory cache of the mapping and the proxy details. Never make a native messaging round trip per request. Refresh the cache when the daemon reports a change (profile up or down, new SOCKS credentials after a daemon restart), and on a timer as a fallback.
+- The native messaging manifest lists only this extension's ID in `allowed_extensions`.
 - It gets proxy ports, credentials and profile status from the daemon through **native messaging**. A small host binary, `vpnns-native`, is installed in `~/.mozilla/native-messaging-hosts/` (and the system-wide location), and relays messages to the control socket.
 - **Fail closed:** if a container is mapped but the daemon is unreachable, or the profile is down, the request must not go direct. Return a proxy that is guaranteed to fail, and show the problem: a badge on the toolbar icon and an error page or notification. Check how Firefox behaves when every returned proxy fails, and prove with a test that it does not fall back to direct.
 - Popup UI: for each container, show the assigned profile, its status (up/down/connecting) and the exit IP if known. Allow changing the mapping, and allow bringing a profile up or down if the user has permission.
@@ -80,7 +86,33 @@ A WebExtension cannot put a tab into a network namespace, so the browser goes th
 
 - Profiles are stored in `/etc/vpnns/profiles.d/<name>.toml`, readable only by root. Fields: backend (wireguard/openvpn), the backend config or a path to it, DNS servers and search domains, allowed users/groups, autostart (on boot / on first use / manual), and optional extra routes or a split-tunnel list (default: route everything through the tunnel).
 - Secrets (private keys, OpenVPN credentials) stay in root-only files and are never sent to clients. The only secret a client ever receives is the SOCKS credentials, and only for profiles the caller may use.
-- CLI commands for managing profiles: `vpnns list`, `vpnns status [profile]`, `vpnns up|down <profile>`, `vpnns import <name> <wg.conf|.ovpn>` (runs through the daemon, admin only).
+- CLI commands for managing profiles: `vpnns list`, `vpnns status [profile]`, `vpnns up|down <profile>`, `vpnns import <name> <wg.conf|.ovpn>` (runs through the daemon, admin only). "Admin" means root, so `sudo vpnns import ...`.
+- **Logins use stored credentials only.** There is no interactive login: no one-time codes (2FA/OTP) and no password prompts. An OpenVPN profile that needs input to connect is rejected at import with a clear error. A private key protected by a password must be decrypted before import.
+- **Imported configs must never run code as root.** The daemon runs the tunnels as root, so an imported config is untrusted input:
+  - WireGuard (`wg-quick` format): reject or strip `PreUp`, `PostUp`, `PreDown`, `PostDown`, `SaveConfig` and `Table`. `DNS` becomes the profile's DNS servers. `Address` and `MTU` are applied inside the namespace.
+  - OpenVPN (`.ovpn`): reject or strip every directive that runs programs or loads code (`up`, `down`, `route-up`, `route-pre-down`, `ipchange`, `client-connect`, `learn-address`, `tls-verify`, `auth-user-pass-verify`, `plugin`, `script-security` and similar), plus directives that change the routing or the interface on the host (`dev-node`, `route-noexec` overrides and similar). vpnns adds its own hook. Move inline credential and key files into root-only storage.
+  - The import prints exactly what was stripped or rejected.
+
+### 9. No access to the host or the local network
+
+A profile reaches **only** what is behind its tunnel. It never reaches the host's `localhost` (a local dev server, the systemd-resolved stub) or the local LAN (printers, a NAS, the router). There is no setting to allow this. Document the effects for users:
+
+- `localhost` inside a profile is the namespace's own loopback, not the host's.
+- Abstract Unix sockets belong to the network namespace. Programs that use them to reach the host (some X11 setups, some D-Bus or agent sockets) fail in a profile shell, while path-based sockets (Wayland, most `ssh-agent` and `gpg-agent` setups) still work. Find out which common desktop programs are affected and list them.
+- A command that hands its work to an instance already running outside the profile escapes the profile. Examples: `firefox <url>`, `code`, `xdg-open`. `vpnns shell` prints a short warning about this on start.
+
+Also add an nftables ruleset inside each namespace that only allows traffic out through the tunnel interface and `lo`. This is a second layer of protection. Fail closed must still hold without it, and the tests check both cases.
+
+### 10. Lifecycle and robustness
+
+- **Restarting or upgrading the daemon must not drop anything.** Namespaces and tunnels live on after `vpnnsd` stops. On start, the daemon finds the existing namespaces and tunnels and takes them over again, and running shells keep working. Installing a new `.deb` version must not interrupt active profiles. At boot, the daemon removes leftovers from a crash (stale namespaces, interfaces and OpenVPN processes) before it starts any profiles.
+- **`vpnns down` while sessions are running** refuses and lists the sessions. With `--force` it tears down the tunnel; the sessions stay alive but have no network (fail closed). With `--kill` it also ends them. `vpnns status` lists the active sessions of each profile.
+- **Network changes:** survive suspend and resume and a change of the host's network (for example, Wi-Fi to Ethernet). Look up the VPN server's hostname again through the host's DNS when it may have changed, retry with backoff, and report the state (`connecting`, `up`, `failed: <reason>`).
+- **SOCKS ports** are stable for each profile (fixed in the profile config, or allocated once and saved), so that a daemon restart does not move them. Credentials may change after a restart; the extension then refreshes them (section 7).
+- **Status:** `vpnns status` shows for each profile its state, exit IP, time since the last handshake or connect, bytes in and out, SOCKS port and active sessions. `--json` gives the same data for scripts and for the extension.
+- **Logging:** log to the journal. Never log secrets (keys, passwords, SOCKS credentials).
+- **Permissions:** the control socket is `0660 root:vpnns`. The SOCKS listeners bind only to `127.0.0.1`.
+- **Uninstall:** removing the package tears down all namespaces, interfaces, proxies and native messaging manifests. Profiles stay in `/etc/vpnns` unless the package is purged.
 
 ## Technology
 
@@ -115,6 +147,21 @@ Run every test below with both a WireGuard profile and an OpenVPN profile, and w
 - **Access control:** a user without permission for a profile cannot start a shell in it or get its SOCKS credentials.
 - **Thread safety:** a stress test of the SOCKS server under concurrent load across several profiles. No connection may ever come from the wrong namespace.
 - **Browser:** an automated Firefox test (Selenium/geckodriver or web-ext with a test page) that checks the exit IP for each container, and the fail-closed behaviour when the daemon is stopped.
+- **No sharing between containers:** two containers mapped to different profiles open the same hostname at the same time, where that hostname means a different server behind each tunnel. Each container must reach its own server. Firefox must not reuse a connection, a cached response or a DNS answer across them.
+- **Default tabs and private windows** connect directly, and are never affected by a mapping.
+- **No host or LAN access:** from a profile shell and from a mapped container, the host's `localhost` services, the systemd-resolved stub and the host's LAN addresses are unreachable. Run this with the nftables layer on and off.
+- **Import safety:** importing configs that contain script hooks or interactive-login directives strips or rejects them, and no imported content ever runs as root.
+- **Daemon restart:** restart `vpnnsd` while a shell and a container are in use. Both keep working, and no traffic leaks while the daemon is down.
+- **`down` with sessions:** check the refuse, `--force` and `--kill` behaviour.
+
+## Out of scope (do not build these)
+
+- VPN types other than WireGuard and OpenVPN (openconnect and others can be added later through the backend interface).
+- Interactive login (2FA/OTP, password prompts).
+- Any access from a profile to the host or the LAN.
+- Mapping default tabs or private windows to a profile.
+- Rules that route by domain or URL instead of by container.
+- Other browsers, a GUI app launcher, and other operating systems.
 
 ## How to work
 
