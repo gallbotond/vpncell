@@ -705,10 +705,13 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     provides `vpncell firefox-policy install [--strict]`, which adds locked
     prefs to `/etc/firefox/policies/policies.json` (read by the deb, tarball
     and snap Firefox). Installing it is a system-wide change to the user's
-    Firefox and was **left to the user** (the build session's safety policy
-    refused to make it); until it is installed,
-    `TestBrowserHTTPNameNoHostDNS` reports a known failure. The other
-    browser tests set the same pref in their test profile.
+    Firefox, so the build session left it to the user, who decided
+    (2026-11-24) that the package installs it by default: `postinst`
+    installs it once (a marker in `/var/lib/vpncell` keeps an admin's
+    later `firefox-policy remove` across upgrades), and `prerm` on removal
+    takes vpncell's entries out again. `TestBrowserHTTPNameNoHostDNS`
+    checks the real system configuration; the other browser tests set the
+    same pref in their test profile.
 27. **OpenVPN status through a cached management query** (§4.4): each
     management connection is logged by openvpn, so `state` and
     `load-stats` go over one connection and are cached for 10 s (the cache
@@ -732,8 +735,8 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     (the implicit parent of `vpncell-sessions.slice`), the OpenVPN units
     and the daemon, then runs `vpncelld teardown` (namespaces, links,
     runtime files, per-user manifests). The NetworkManager drop-in lives
-    in `/usr/lib/NetworkManager/conf.d/` (not a conffile). The Firefox
-    policy (item 26) is not installed by the package.
+    in `/usr/lib/NetworkManager/conf.d/` (not a conffile). The package
+    installs the Firefox policy of item 26.
 
 ## 13. Lifecycle
 
