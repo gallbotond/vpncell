@@ -1,0 +1,32 @@
+[Unit]
+Description=vpncell daemon (per-profile VPN network namespaces)
+Documentation=man:vpncell(1) https://github.com/gallbotond/vpncell
+After=network.target dbus.service
+Wants=network.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=@DAEMON@
+Restart=on-failure
+RestartSec=1s
+# Listening sockets (control socket, SOCKS ports) are kept by systemd across
+# restarts, so clients wait instead of failing while the daemon restarts.
+FileDescriptorStoreMax=256
+FileDescriptorStorePreserve=yes
+RuntimeDirectory=vpncell
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+StateDirectory=vpncell
+StateDirectoryMode=0700
+# Namespaces, tunnels and sessions outlive the daemon; only the daemon's own
+# process is stopped. Sessions live in vpncell-sessions.slice scopes.
+KillMode=control-group
+TimeoutStopSec=20s
+# No private mount namespace: it would hide /run/netns bind mounts from the
+# host (DESIGN.md §12). The capability set is restricted instead.
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_SETUID CAP_SETGID CAP_SETPCAP CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_NET_BIND_SERVICE CAP_KILL
+SyslogIdentifier=vpncelld
+
+[Install]
+WantedBy=multi-user.target

@@ -618,6 +618,31 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     namespace would hide `/run/netns` bind mounts from the host. The
     capability bounding set is still restricted.
 
+
+### Changes made during the build
+
+12. **Leak capture without a host firewall table** (§15.3). The build must
+    not change this host's firewall chains, so no `inet vpncell_test` table
+    is added. Captures run with `tcpdump` on the physical interface with the
+    BPF filter `not (udp port <p> …)` for the UDP ports that `tailscaled`
+    owns (read from `ss -ulpn`). Nothing else is filtered; leaks are found by
+    test destinations, marker strings and non-VPN packets to the endpoint.
+13. **Local lab over loopback** (§15.1). Lab servers use the same trick as
+    the WireGuard backend: the server's tunnel device is created in the host
+    namespace with its UDP socket on `127.0.0.1:<port>` and moved into the lab
+    server namespace. No veth, address or route is added to the host.
+14. **Daemon capabilities** (§13): the bounding set also needs
+    `CAP_SETPCAP` (the session helper drops the bounding set),
+    `CAP_CHOWN` (session pty owned by the user), `CAP_FOWNER` and
+    `CAP_DAC_OVERRIDE` (root-only files under `/etc/vpncell` and `/run`).
+15. **WireGuard keepalive** (§4.3): a peer without `PersistentKeepalive`
+    gets 25 s, so that "time since last handshake" reflects tunnel health.
+16. **`vpncell run` uses a pty** when stdin and stdout are terminals
+    (`-t`/`-T` force it on or off); pipes and files are passed directly.
+17. **Main thread pinned** (§6): `vpncelld` locks its main goroutine to the
+    main thread, so a namespace worker can never wedge the main thread in a
+    profile namespace.
+
 ## 13. Lifecycle
 
 - **Unit** `vpncelld.service`: `Type=notify`, `Restart=on-failure`,
