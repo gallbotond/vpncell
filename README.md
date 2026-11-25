@@ -155,6 +155,13 @@ allow that.
 - On start, `vpncell shell` warns that commands which hand work to a program
   already running outside the profile (`firefox <url>`, `code`,
   `xdg-open`) escape the profile.
+- Sessions can be nested: `vpncell shell B` or `vpncell run B -- …` inside a
+  session of profile A works. The daemon starts the new session itself, in
+  B's namespace, so its traffic goes through B's tunnel only, never A's or the
+  host's. The two sessions are connected only by the local terminal. The same
+  access check applies as from the host (your user and B's `[access]` list),
+  so nesting gives no extra access. `VPNCELL_PROFILE` is set to B in the inner
+  session; `exit` returns to A.
 
 ### What works inside a profile shell
 
