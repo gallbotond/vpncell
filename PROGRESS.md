@@ -5,9 +5,9 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
-**Build complete (as of 2026-11-25).** All six steps and the Firefox
-policy follow-up are merged. Nothing is left for Claude to build. The
-open items below need the user (see "What I need from you").
+**Issue run (2026-11-26).** Working through the open GitHub issues in this
+order, one branch and PR each: #8+#9, #14, #10, #15, #13, #12. See
+"Issue run" below for what is merged and "Open items for the user".
 
 ## Steps
 
@@ -26,31 +26,54 @@ open items below need the user (see "What I need from you").
 
 ```bash
 make build && make test
-make itest                       # root integration tests (asks sudo)
+packaging/build-deb.sh 0.9.N && sudo apt install ./bin/vpncell_0.9.N_amd64.deb
+go test -c -tags integration -o bin/itest ./test/integration
+cd test/integration && sudo VPNCELL_TEST_INSTALLED=1 ../../bin/itest -test.v -test.timeout 90m
 test/scripts/vm-fetch-configs.sh # if /var/lib/vpncell-test/vm is gone
 ```
 
-The host has the installed `vpncell` 0.9.1 package, not the dev build
-(`vpncelld` was stopped as of 2026-11-25). To test a dev build again, run `test/scripts/dev-install.sh` (it
-installs runtime units under `/run/systemd/system/`).
-
-## Test status (after #7)
-
-The full suite (`make itest`) passes against the installed `.deb` with the
-WireGuard, OpenVPN and mixed sets. This includes
-`TestBrowserHTTPNameNoHostDNS` and `TestPackageUpgradeAndRemove`. There is
-one known failure: the snap Firefox browser tests fail until the portal
-permission is granted (see "What I need from you", item 2). The tarball
-(deb-equivalent) Firefox passes them.
+The host runs the installed `.deb` **and the user's own profiles**
+(`sonrisa` = the real work VPN, `demo-openvpn`, `demo-wireguard`) with a
+live session. Since #20 the integration harness touches only test profiles
+(`t-*`, `vm-*`) and leaves the daemon running. **Do not run
+`test/scripts/package-test.sh` on this host**: it purges the package,
+which deletes `/etc/vpncell` (the user's profiles). `dev-install.sh`
+refuses while the package is installed.
 
 Harness notes: the session runs under the `claude-desktop` AppArmor
 profile; confined `tcpdump` cannot be signalled from it, so captures use
 AF_PACKET in the test binary.
 
-## Next actions
+## Issue run (2026-11-26)
 
-None for Claude. The remaining items are the user's (see "What I need
-from you", items 2–4).
+| Issue(s) | Branch | PR | State |
+|---|---|---|---|
+| #8 hang on stopped daemon, #9 group message | `fix/client-dial-timeout` | [#20](https://github.com/gallbotond/vpncell/pull/20) | merged |
+
+### #8 + #9 (PR #20, package 0.9.2)
+
+- `client.Dial`: 2 s → "waiting for vpncelld…" and a unit-state check;
+  stopped unit (seen twice, not `auto-restart`) fails at once with a
+  `systemctl start` hint; otherwise 30 s limit. EACCES tells "in the group
+  database but not in this session" (newgrp/sg) from "not a member".
+- Tests: unit tests in `internal/client`; `TestClientDaemonStopped`,
+  `TestClientGroupMessages`.
+- Full suite against 0.9.2: all pass with the tarball Firefox. All snap
+  browser subtests fail (see open item 1). `TestVMExitIP/vm-ovpn` failed
+  once (curl to 172.30.0.80 timed out) and passed on rerun.
+
+## Open items for the user
+
+1. **Snap Firefox still cannot start the native host** although the
+   permission store has `webextensions/vpncell: {'snap.firefox': ['yes']}`.
+   The user journal shows the portal asking again on every attempt:
+   `AccessDialog call failed: … Only the focused app is allowed to show a
+   system access dialog`. So the stored grant is not what this portal
+   version checks. Please start the snap Firefox once in your desktop
+   session with the extension installed and answer the dialog, then run
+   `make itest RUN=TestBrowser` (or tell me which app ID the portal uses).
+2. AMO signing (`packaging/amo-sign.sh` with your keys) — unchanged.
+3. Review README "Test VM changes" — unchanged.
 
 ## Final report
 
