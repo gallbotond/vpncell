@@ -1,9 +1,10 @@
 // Popup: per container its profile, state and exit IP; change the mapping;
 // bring profiles up or down.
+import { describeProblem, TunnelProblem } from "./decide.js";
 interface PopupState {
   containers: { id: string; name: string; color: string; icon: string }[];
   mapping: Record<string, string>;
-  profiles: Record<string, { state: string; autostart: string; exitIP?: string }>;
+  profiles: Record<string, { state: string; autostart: string; exitIP?: string; problem?: TunnelProblem }>;
   daemonUp: boolean;
   problems: Record<string, string>;
 }
@@ -49,6 +50,12 @@ async function render(): Promise<void> {
     });
     const p = mapped ? s.profiles[mapped] : undefined;
     const state = el("td", { class: "state" }, mapped ? (s.problems[mapped] ? `blocked: ${s.problems[mapped]}` : p?.state ?? "unknown") : "direct");
+    // Why the tunnel is not connected (issue #14).
+    const why = mapped && !s.problems[mapped] ? describeProblem(p?.problem) : null;
+    if (why) {
+      state.append(el("div", { class: "why", title: why.detail }, why.summary));
+      if (why.detail) state.append(el("div", { class: "hint" }, why.detail));
+    }
     const ip = el("td", { class: "exitip" }, p?.exitIP ?? "");
     const actions = el("td");
     if (mapped && p) {

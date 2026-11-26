@@ -23,6 +23,19 @@ type Status struct {
 	PushedDNS     []netip.Addr
 	PushedSearch  []string
 	Present       bool // the tunnel interface exists in the namespace
+
+	// Why the tunnel is not (or was not) connected (issue #14). Set by
+	// backends that know; empty otherwise.
+	Reason     string    // short code, e.g. "no-reply", "auth-failure"
+	ReasonText string    // one line for people, e.g. "no reply from the server"
+	Hint       string    // what to check
+	ReasonAt   time.Time // when the last attempt failed
+	Retries    int       // failed attempts since the last successful connection
+	// LostAt is when a connected tunnel lost its connection (zero if it
+	// has not connected since it was started).
+	LostAt time.Time
+	// LogHint is a command that shows the tunnel's log.
+	LogHint string
 }
 
 const (

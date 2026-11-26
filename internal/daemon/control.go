@@ -127,7 +127,8 @@ func (d *Daemon) handle(c *caller, conn *control.Conn, req *control.Request, fil
 		if err := d.up(p, rt); err != nil {
 			return nil, control.Errorf(control.ErrInternal, "bring up %s: %v", p.Name, err)
 		}
-		return &control.Response{Type: "ok", Message: "profile " + p.Name + " is " + rt.getState()}, nil
+		return &control.Response{Type: "ok", Message: "profile " + p.Name + " is " + rt.getState(),
+			Status: []control.ProfileStatus{d.profileStatus(c, p)}}, nil
 	case "down":
 		p, rt, err := d.allowedProfile(c, req.Profile)
 		if err != nil {
@@ -261,9 +262,7 @@ func (d *Daemon) profileStatus(c *caller, p *profile.Profile) control.ProfileSta
 		Name: p.Name, Backend: p.Backend, Autostart: p.Autostart,
 		State: rt.state, ExitIP: rt.exitIP, Interface: rt.ifname,
 	}
-	if !rt.upSince.IsZero() {
-		ps.ConnectedAt = rt.upSince.Unix()
-	}
+	upSince := rt.upSince
 	rt.mu.Unlock()
 	if ps.State == "" {
 		ps.State = backend.StateDown
@@ -274,8 +273,25 @@ func (d *Daemon) profileStatus(c *caller, p *profile.Profile) control.ProfileSta
 	if !st.LastHandshake.IsZero() {
 		ps.LastHandshake = st.LastHandshake.Unix()
 	}
-	if !st.ConnectedAt.IsZero() {
+	// "connected" only while up (issue #14); otherwise "trying since".
+	switch {
+	case ps.State == backend.StateUp && !st.ConnectedAt.IsZero():
 		ps.ConnectedAt = st.ConnectedAt.Unix()
+	case ps.State == backend.StateUp && !upSince.IsZero():
+		ps.ConnectedAt = upSince.Unix()
+	case ps.State != backend.StateDown && !st.LostAt.IsZero():
+		ps.TryingSince = st.LostAt.Unix()
+	case ps.State != backend.StateDown && !upSince.IsZero():
+		ps.TryingSince = upSince.Unix()
+	}
+	if ps.State != backend.StateDown {
+		ps.Log = st.LogHint
+		if ps.State != backend.StateUp && st.Reason != "" {
+			ps.Reason, ps.ReasonText, ps.Hint, ps.Retries = st.Reason, st.ReasonText, st.Hint, st.Retries
+			if !st.ReasonAt.IsZero() {
+				ps.ReasonAt = st.ReasonAt.Unix()
+			}
+		}
 	}
 	ps.RxBytes, ps.TxBytes = st.RxBytes, st.TxBytes
 	for _, a := range st.Addresses {

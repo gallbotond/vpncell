@@ -14,6 +14,40 @@ export interface ProfileView {
   autostart: string; // boot | on-use | manual
   socks?: SocksDetails;
   exitIP?: string;
+  problem?: TunnelProblem;
+}
+
+// Why a tunnel is not connected, from `status` (daemon fields reason,
+// reason_text, hint, retries, reason_at, log; issue #14).
+export interface TunnelProblem {
+  reason: string;
+  text: string;
+  hint?: string;
+  retries?: number;
+  at?: number; // unix seconds
+  log?: string;
+}
+
+export function problemFromStatus(s: any): TunnelProblem | undefined {
+  if (!s || typeof s.reason !== "string" || s.reason === "" || s.state === "up") return undefined;
+  return {
+    reason: s.reason,
+    text: typeof s.reason_text === "string" && s.reason_text ? s.reason_text : s.reason,
+    hint: typeof s.hint === "string" && s.hint ? s.hint : undefined,
+    retries: typeof s.retries === "number" ? s.retries : undefined,
+    at: typeof s.reason_at === "number" ? s.reason_at : undefined,
+    log: typeof s.log === "string" && s.log ? s.log : undefined,
+  };
+}
+
+// One line for the popup, e.g. "no reply from the server (3 failed
+// attempts)", and the longer hint with the log command.
+export function describeProblem(p: TunnelProblem | undefined): { summary: string; detail: string } | null {
+  if (!p) return null;
+  let summary = p.text;
+  if (p.retries && p.retries > 0) summary += ` (${p.retries} failed attempt${p.retries === 1 ? "" : "s"})`;
+  const detail = [p.hint, p.log ? `Log: ${p.log}` : ""].filter(Boolean).join(". ");
+  return { summary, detail };
 }
 
 export interface State {
