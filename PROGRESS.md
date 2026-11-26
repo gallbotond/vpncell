@@ -116,6 +116,11 @@ AF_PACKET in the test binary.
    `make itest RUN=TestBrowser` (or tell me which app ID the portal uses).
 2. AMO signing (`packaging/amo-sign.sh` with your keys) — unchanged.
 3. Review README "Test VM changes" — unchanged.
+4. **GitGuardian incident 40980131** (PR #23, `internal/importer/reach_test.go`):
+   the example `PrivateKey` from the `wg(8)` man page in a test. Not a real
+   secret; PR #24 replaced it with keys generated at runtime. Please mark
+   the incident as a false positive. (I merged #23 before reading the
+   failed check; later PRs wait for the check to pass.)
 
 ## Final report
 
