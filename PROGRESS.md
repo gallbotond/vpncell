@@ -50,6 +50,7 @@ AF_PACKET in the test binary.
 |---|---|---|---|
 | #8 hang on stopped daemon, #9 group message | `fix/client-dial-timeout` | [#20](https://github.com/gallbotond/vpncell/pull/20) | merged |
 | #14 OpenVPN failure reason | `fix/openvpn-reconnect-reason` | [#21](https://github.com/gallbotond/vpncell/pull/21) | merged |
+| #10 ping in sessions | `fix/ping` | [#22](https://github.com/gallbotond/vpncell/pull/22) | merged |
 
 ### #8 + #9 (PR #20, package 0.9.2)
 
@@ -77,6 +78,15 @@ AF_PACKET in the test binary.
 - Tests: `TestOpenVPNReasonWrongKey` (VM, ~60 s), `TestOpenVPNReasonRevokedCert`
   (lab CRL). Full suite against 0.9.5: 106 passes, only `/snap` browser
   subtests fail (open item 1).
+
+### #10 (PR #22, package 0.9.6)
+
+- `ping_group_range` copied from the host into each profile namespace (up
+  and adoption); `/usr/bin/ping` bind-mounted onto itself `nosuid` in the
+  session mount namespace, so it runs without its file capability.
+  Decision in DECISIONS.md. Nothing left in "Known limitations" for ping.
+- Tests: `TestPingLab`, `TestPingVM` (IPv4+IPv6), `TestPingAdoptedNamespace`.
+  Full suite against 0.9.6: 112 passes, only `/snap` browser subtests fail.
 
 ## Open items for the user
 
