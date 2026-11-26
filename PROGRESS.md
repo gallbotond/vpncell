@@ -5,9 +5,9 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
-**#17 (`vpncell remove`) in progress (2026-11-26)** on
-`feat/remove-profile`. Earlier in the day: #8, #9, #10, #12, #13, #14 and
-#15 merged and closed (PRs #20–#26). Still open: #16, #18, #19. See "Issue
+**#17 merged (PR #27, 2026-11-26).** Earlier in the day: #8, #9, #10,
+#12, #13, #14 and #15 merged and closed (PRs #20–#26). Still open: #16,
+#18, #19. See "Issue
 run" and "Open items for the user" below.
 
 ## Steps
@@ -56,7 +56,7 @@ AF_PACKET in the test binary.
 | follow-up: test key generated at runtime | `fix/test-key-runtime` | [#24](https://github.com/gallbotond/vpncell/pull/24) | merged |
 | #13 tls-crypt on the VM, `import --tls-auth` | `feat/tls-auth-import` | [#25](https://github.com/gallbotond/vpncell/pull/25) | merged |
 | #12 session identity (session 1–3, profile 1–2) | `feat/session-identity` | [#26](https://github.com/gallbotond/vpncell/pull/26) | merged |
-| #17 `vpncell remove`, no orphaned profiles | `feat/remove-profile` | – | in progress |
+| #17 `vpncell remove`, no orphaned profiles | `feat/remove-profile` | [#27](https://github.com/gallbotond/vpncell/pull/27) | merged |
 
 ### #8 + #9 (PR #20, package 0.9.2)
 
@@ -133,7 +133,7 @@ AF_PACKET in the test binary.
 - Tests: `TestSessionIdentity`, `TestShellBannerAndTitle`. Full suite
   against 0.9.11: 119 passes, only `/snap` browser subtests fail.
 
-### #17 (package 0.9.13)
+### #17 (PR #27, package 0.9.13)
 
 - `sudo vpncell remove [--force|--kill] NAME`: refuses while up or with
   sessions; deletes `profiles.d/NAME.toml` and `secrets/NAME/`; names
@@ -152,11 +152,12 @@ AF_PACKET in the test binary.
   `TestReloadDeletedProfile`, `TestReloadBrokenProfile`,
   `TestRestartDeletedProfile`; unit tests `TestWithin`, `TestStatePrune`.
   The first run against 0.9.12 found that a restart kept the deleted
-  profile's index and port (fixed in 0.9.13).
+  profile's index and port (fixed in 0.9.13). Full suite against 0.9.13:
+  124 passes, only the 7 `/snap` browser subtests fail (open item 1).
 
 ### State of this host (end of the run)
 
-`vpncell` 0.9.11 is installed (versions 0.9.2–0.9.11 were test builds of
+`vpncell` 0.9.13 is installed (versions 0.9.2–0.9.13 were test builds of
 this run; `bin/vpncell_0.9.*.deb`). Your profiles `sonrisa`,
 `demo-openvpn` (now tls-crypt) and `demo-wireguard` are up; your session
 in `demo-openvpn` was never stopped. Sessions opened before 0.9.6 do not
