@@ -49,6 +49,7 @@ AF_PACKET in the test binary.
 | Issue(s) | Branch | PR | State |
 |---|---|---|---|
 | #8 hang on stopped daemon, #9 group message | `fix/client-dial-timeout` | [#20](https://github.com/gallbotond/vpncell/pull/20) | merged |
+| #14 OpenVPN failure reason | `fix/openvpn-reconnect-reason` | [#21](https://github.com/gallbotond/vpncell/pull/21) | merged |
 
 ### #8 + #9 (PR #20, package 0.9.2)
 
@@ -61,6 +62,21 @@ AF_PACKET in the test binary.
 - Full suite against 0.9.2: all pass with the tarball Firefox. All snap
   browser subtests fail (see open item 1). `TestVMExitIP/vm-ovpn` failed
   once (curl to 172.30.0.80 timed out) and passed on rerun.
+
+### #14 (PR #21, package 0.9.5)
+
+- OpenVPN status reads openvpn's state history (`state all`) and, after a
+  TLS error with a server reply, its log history. Reasons: `no-reply`,
+  `stalled-after-server-cert`, `tls-error`, `auth-failure`,
+  `ping-restart`, `restart`; retry count and time; `trying since` instead
+  of `connected` when not up; `vpncell up` exits 3 (OpenVPN only) with
+  the reason and journalctl command; reason + hint in the Firefox popup.
+- Finding: openvpn's management log history has no `VERIFY OK` /
+  `Initial packet` lines, so the certificate stall is detected as "server
+  replied (AUTH) and the only error is the handshake timeout".
+- Tests: `TestOpenVPNReasonWrongKey` (VM, ~60 s), `TestOpenVPNReasonRevokedCert`
+  (lab CRL). Full suite against 0.9.5: 106 passes, only `/snap` browser
+  subtests fail (open item 1).
 
 ## Open items for the user
 
