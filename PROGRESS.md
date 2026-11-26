@@ -5,9 +5,9 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
-**Issue run (2026-11-26).** Working through the open GitHub issues in this
-order, one branch and PR each: #8+#9, #14, #10, #15, #13, #12. See
-"Issue run" below for what is merged and "Open items for the user".
+**Issue run done (2026-11-26).** #8, #9, #10, #12, #13, #14 and #15 are
+merged and closed (PRs #20–#26). Open, not in this run's scope: #16, #17,
+#18, #19. See "Issue run" and "Open items for the user" below.
 
 ## Steps
 
@@ -54,6 +54,7 @@ AF_PACKET in the test binary.
 | #15 split-tunnel information | `fix/split-tunnel-info` | [#23](https://github.com/gallbotond/vpncell/pull/23) | merged |
 | follow-up: test key generated at runtime | `fix/test-key-runtime` | [#24](https://github.com/gallbotond/vpncell/pull/24) | merged |
 | #13 tls-crypt on the VM, `import --tls-auth` | `feat/tls-auth-import` | [#25](https://github.com/gallbotond/vpncell/pull/25) | merged |
+| #12 session identity (session 1–3, profile 1–2) | `feat/session-identity` | [#26](https://github.com/gallbotond/vpncell/pull/26) | merged |
 
 ### #8 + #9 (PR #20, package 0.9.2)
 
@@ -119,6 +120,25 @@ AF_PACKET in the test binary.
 - Tests: `TestVMOpenVPNConfigAsDownloaded`, `TestImportTLSAuthOption`.
   Full suite against 0.9.9: 117 passes, only `/snap` fail.
 
+### #12 (PR #26, package 0.9.11)
+
+- `VPNCELL_SESSION`, parent tracking, status marks, `vpncell current`
+  (session from the scope cgroup, network from `/proc/<pid>/ns/net` read
+  with the caller's fsuid; no new capability), shell banner and terminal
+  title (`VPNCELL_QUIET=1` turns them off). DESIGN.md §12 items 31–34.
+- Left in the issue (comment there; the PR closed it): session idea 4,
+  profile ideas 4–6.
+- Tests: `TestSessionIdentity`, `TestShellBannerAndTitle`. Full suite
+  against 0.9.11: 119 passes, only `/snap` browser subtests fail.
+
+### State of this host (end of the run)
+
+`vpncell` 0.9.11 is installed (versions 0.9.2–0.9.11 were test builds of
+this run; `bin/vpncell_0.9.*.deb`). Your profiles `sonrisa`,
+`demo-openvpn` (now tls-crypt) and `demo-wireguard` are up; your session
+in `demo-openvpn` was never stopped. Sessions opened before 0.9.6 do not
+have the ping fix; new ones do.
+
 ## Open items for the user
 
 1. **Snap Firefox still cannot start the native host** although the
@@ -131,15 +151,23 @@ AF_PACKET in the test binary.
    `make itest RUN=TestBrowser` (or tell me which app ID the portal uses).
 2. AMO signing (`packaging/amo-sign.sh` with your keys) — unchanged.
 3. Review README "Test VM changes" — unchanged.
-5. **`proxmox-test` OpenVPN client** (on your Proxmox machine) still has a
-   `<tls-auth>` config and cannot connect since the VM server uses
-   tls-crypt (#13). Download it again from openvpn-ui
-   (`http://free-vm:18080/certificates/proxmox-test`) on that machine.
 4. **GitGuardian incident 40980131** (PR #23, `internal/importer/reach_test.go`):
    the example `PrivateKey` from the `wg(8)` man page in a test. Not a real
    secret; PR #24 replaced it with keys generated at runtime. Please mark
    the incident as a false positive. (I merged #23 before reading the
    failed check; later PRs wait for the check to pass.)
+5. **`proxmox-test` OpenVPN client** (on your Proxmox machine) still has a
+   `<tls-auth>` config and cannot connect since the VM server uses
+   tls-crypt (#13). Download it again from openvpn-ui
+   (`http://free-vm:18080/certificates/proxmox-test`) on that machine.
+6. **`sonrisa` DNS** (found during #15): the work server pushes DNS
+   `8.8.8.8`/`8.8.4.4` but only private routes and no redirect-gateway, so
+   name lookups inside `sonrisa` probably fail. After its next reconnect
+   `vpncell status sonrisa` shows this. If needed, set `[dns] servers` to
+   your internal resolver in `/etc/vpncell/profiles.d/sonrisa.toml` and
+   `sudo vpncell reload`. (I did not touch the profile.)
+7. Issue #12 was closed by its PR; reopen it if you want the remaining
+   ideas (session 4, profile 4–6) tracked there.
 
 ## Final report
 
