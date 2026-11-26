@@ -3,10 +3,27 @@ package importer
 import (
 	"strings"
 	"testing"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-const goodWG = `[Interface]
-PrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=
+// Keys are generated: no key material in the repository.
+var (
+	wgPriv = mustKey()
+	wgPeer = mustKey().PublicKey()
+	wgPSK  = mustKey()
+)
+
+func mustKey() wgtypes.Key {
+	k, err := wgtypes.GeneratePrivateKey()
+	if err != nil {
+		panic(err)
+	}
+	return k
+}
+
+var goodWG = `[Interface]
+PrivateKey = ` + wgPriv.String() + `
 Address = 10.8.0.4/32, fdcc::4/128
 DNS = 10.0.0.53, corp.example
 MTU = 1380
@@ -14,10 +31,10 @@ PostUp = iptables -A FORWARD -j ACCEPT # comment
 Table = off
 
 [Peer]
-PublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=
-PresharedKey = 4AQZf2oVxmTI0nNNdGJGcl6Gz/3kTqdFJ0AQ3Snp0pE=
+PublicKey = ` + wgPeer.String() + `
+PresharedKey = ` + wgPSK.String() + `
 AllowedIPs = 0.0.0.0/0, ::/0
-Endpoint = [2600:1900:4021:668::]:51820
+Endpoint = [2001:db8::1]:51820
 PersistentKeepalive = 25
 `
 
@@ -41,7 +58,7 @@ func TestParseWireGuardStripsHooks(t *testing.T) {
 	}
 	// Secrets never in the report.
 	all := strings.Join(rep.Kept, "\n") + joined
-	if strings.Contains(all, "yAnz5TF") || strings.Contains(all, "4AQZf2") {
+	if strings.Contains(all, wgPriv.String()) || strings.Contains(all, wgPSK.String()) {
 		t.Fatalf("report contains a secret")
 	}
 	// Round trip.
@@ -56,9 +73,9 @@ func TestParseWireGuardRejects(t *testing.T) {
 		"amnezia":        strings.Replace(goodWG, "MTU", "Jc = 3\nMTU", 1),
 		"unknown key":    strings.Replace(goodWG, "MTU", "Foo = bar\nMTU", 1),
 		"bad section":    goodWG + "[Hooks]\n",
-		"bad key":        strings.Replace(goodWG, "xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=", "abc", 1),
+		"bad key":        strings.Replace(goodWG, wgPeer.String(), "abc", 1),
 		"no peer":        strings.Split(goodWG, "[Peer]")[0],
-		"v6 no brackets": strings.Replace(goodWG, "[2600:1900:4021:668::]:51820", "2600:1900:4021:668:::51820", 1),
+		"v6 no brackets": strings.Replace(goodWG, "[2001:db8::1]:51820", "2001:db8::1:51820", 1),
 		"bad dns":        strings.Replace(goodWG, "10.0.0.53, corp.example", "$(reboot)", 1),
 	}
 	for name, c := range cases {

@@ -34,7 +34,7 @@ test/scripts/vm-fetch-configs.sh # if /var/lib/vpncell-test/vm is gone
 ```
 
 The host runs the installed `.deb` **and the user's own profiles**
-(`sonrisa` = the real work VPN, `demo-openvpn`, `demo-wireguard`) with a
+(`work` = the real work VPN, `demo-openvpn`, `demo-wireguard`) with a
 live session. Since #20 the integration harness touches only test profiles
 (`t-*`, `vm-*`) and leaves the daemon running. **Do not run
 `test/scripts/package-test.sh` on this host**: it purges the package,
@@ -104,9 +104,9 @@ AF_PACKET in the test binary.
   (older hook); until then status shows none (by design, no wrong claims).
 - Tests: `TestReachSplitWireGuard`, `TestReachNoDNS`, `TestReachVMOpenVPN`
   + unit tests. Full suite against 0.9.8: 115 passes, only `/snap` fail.
-- Note for the user: the `sonrisa` work profile gets pushed DNS 8.8.8.8 /
+- Note for the user: the `work` profile gets pushed DNS 8.8.8.8 /
   8.8.4.4 but only private routes, so name lookups in it probably fail;
-  after its next reconnect `vpncell status sonrisa` will flag this. Set
+  after its next reconnect `vpncell status work` will flag this. Set
   `[dns] servers` (your internal resolver) if needed.
 
 ### #13 (PR #25, package 0.9.9)
@@ -158,7 +158,7 @@ AF_PACKET in the test binary.
 ### State of this host (end of the run)
 
 `vpncell` 0.9.13 is installed (versions 0.9.2–0.9.13 were test builds of
-this run; `bin/vpncell_0.9.*.deb`). Your profiles `sonrisa`,
+this run; `bin/vpncell_0.9.*.deb`). Your profiles `work`,
 `demo-openvpn` (now tls-crypt) and `demo-wireguard` are up; your session
 in `demo-openvpn` was never stopped. Sessions opened before 0.9.6 do not
 have the ping fix; new ones do.
@@ -184,11 +184,11 @@ have the ping fix; new ones do.
    `<tls-auth>` config and cannot connect since the VM server uses
    tls-crypt (#13). Download it again from openvpn-ui
    (`http://free-vm:18080/certificates/proxmox-test`) on that machine.
-6. **`sonrisa` DNS** (found during #15): the work server pushes DNS
+6. **`work` DNS** (found during #15): the work server pushes DNS
    `8.8.8.8`/`8.8.4.4` but only private routes and no redirect-gateway, so
-   name lookups inside `sonrisa` probably fail. After its next reconnect
-   `vpncell status sonrisa` shows this. If needed, set `[dns] servers` to
-   your internal resolver in `/etc/vpncell/profiles.d/sonrisa.toml` and
+   name lookups inside `work` probably fail. After its next reconnect
+   `vpncell status work` shows this. If needed, set `[dns] servers` to
+   your internal resolver in `/etc/vpncell/profiles.d/work.toml` and
    `sudo vpncell reload`. (I did not touch the profile.)
 7. Issue #12 was closed by its PR; reopen it if you want the remaining
    ideas (session 4, profile 4–6) tracked there.

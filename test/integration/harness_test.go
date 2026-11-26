@@ -7,12 +7,15 @@
 //
 //	VPNCELL_TEST_INSTALLED=1  test the installed .deb instead of the dev build
 //	VPNCELL_TEST_VM=0         skip profiles against the test VM
+//	VPNCELL_TEST_VM_ENDPOINT  the VM's address (default: the Endpoint host
+//	                          in vm-wg.conf); it is also the expected exit IP
 package integration
 
 import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -34,10 +37,36 @@ var (
 	theLab    *lab.Lab
 	installed = os.Getenv("VPNCELL_TEST_INSTALLED") == "1"
 	useVM     = os.Getenv("VPNCELL_TEST_VM") != "0"
-	// VM endpoint and expected exit address (DESIGN.md §15.1).
-	vmEndpoint = "2600:1900:4021:668::"
+	// VM endpoint and expected exit address (DESIGN.md §15.1); set in
+	// setup from VPNCELL_TEST_VM_ENDPOINT or vm-wg.conf.
+	vmEndpoint string
 	vmConfigs  = "/var/lib/vpncell-test/vm"
 )
+
+// vmEndpointAddr returns VPNCELL_TEST_VM_ENDPOINT, or the host part of the
+// Endpoint line in the VM's WireGuard config. The address is not kept in
+// the repository.
+func vmEndpointAddr(wgConf string) (string, error) {
+	if ep := os.Getenv("VPNCELL_TEST_VM_ENDPOINT"); ep != "" {
+		return ep, nil
+	}
+	b, err := os.ReadFile(wgConf)
+	if err != nil {
+		return "", err
+	}
+	for _, l := range strings.Split(string(b), "\n") {
+		k, v, ok := strings.Cut(l, "=")
+		if !ok || !strings.EqualFold(strings.TrimSpace(k), "Endpoint") {
+			continue
+		}
+		host, _, err := net.SplitHostPort(strings.TrimSpace(v))
+		if err != nil {
+			return "", fmt.Errorf("%s: Endpoint: %w", wgConf, err)
+		}
+		return host, nil
+	}
+	return "", fmt.Errorf("%s: no Endpoint (set VPNCELL_TEST_VM_ENDPOINT)", wgConf)
+}
 
 // Test users (created by test/scripts/dev-install.sh):
 // vctest1: in group vpncell and allowed on every test profile
@@ -128,6 +157,11 @@ func setup() error {
 		if _, err := os.Stat(filepath.Join(vmConfigs, "vm-wg.conf")); err != nil {
 			return fmt.Errorf("VM configs missing (run test/scripts/vm-fetch-configs.sh or set VPNCELL_TEST_VM=0): %w", err)
 		}
+		ep, err := vmEndpointAddr(filepath.Join(vmConfigs, "vm-wg.conf"))
+		if err != nil {
+			return err
+		}
+		vmEndpoint = ep
 		if err := importProfile("vm-wg", filepath.Join(vmConfigs, "vm-wg.conf")); err != nil {
 			return err
 		}

@@ -56,25 +56,19 @@ prompt, this file wins.
 ## Test VPN servers
 
 - The user has VPN servers, and test services behind them, on a **Google Cloud
-  VM**. Reach it from this host with:
-
-  ```bash
-  gcloud compute ssh --zone "us-east1-b" "free-vm" --tunnel-through-iap --project "free-vm-1792444052"
-  ```
-
-  (VM `free-vm`, zone `us-east1-b`, project `free-vm-1792444052`, SSH through
-  IAP.) Inspect the VM before designing the tests, and decide from what is
+  VM** (`free-vm`), reached from this host with `gcloud compute ssh` through
+  IAP. Inspect the VM before designing the tests, and decide from what is
   there: which VPN servers run, which networks and services are behind them,
   and whether the overlapping setup below already exists.
 - **What runs there** (as of 2026-11-24, all in Docker): `wg-easy` (WireGuard,
   UDP 51820), `openvpn` (UDP 1194), `openvpn-ui`, and test services behind the
   VPNs (`whoami`, `nginx`, `iperf3`).
 - **Admin UIs, reachable only over the tailnet.** This host is on the user's
-  tailnet as `man-ubser26-work`. `tailscale serve` on the VM publishes:
+  tailnet. `tailscale serve` on the VM publishes:
   - wg-easy: `http://free-vm:51821`
   - openvpn-ui: `http://free-vm:18080`
 
-  Use the name `free-vm` (or `free-vm.tail4e944c.ts.net`), not the tailnet IP:
+  Use the name `free-vm` (or its full MagicDNS name), not the tailnet IP:
   `tailscale serve` returns 404 for requests addressed to the IP. The user
   reaches the same UIs at `http://localhost:51821` and `http://localhost:18080`
   on their own computer through an SSH tunnel; those addresses do not work on
@@ -88,8 +82,8 @@ prompt, this file wins.
   and the password. Never commit `.env`, and never copy its values into code,
   logs, commit messages, pull requests or test fixtures; read them at runtime.
 - **The VPN endpoints are IPv6 only.** The VM has no public IPv4, only
-  `2600:1900:4021:668::`. wg-easy and OpenVPN clients must connect to that
-  address. This host has working IPv6, so the tests can run from here.
+  a public IPv6 address (not recorded here). wg-easy and OpenVPN clients
+  must connect to that address. This host has working IPv6, so the tests can run from here.
 - **Tailscale runs on this host.** The build and the tests must not disturb it:
   leave its routing table, firewall chains and DNS settings alone, so that the
   session stays reachable. Packet captures in the leak tests will also see
