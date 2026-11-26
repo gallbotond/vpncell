@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"sort"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"github.com/gallbotond/vpncell/internal/control"
 	"github.com/gallbotond/vpncell/internal/netns"
 	"github.com/gallbotond/vpncell/internal/profile"
+	"github.com/gallbotond/vpncell/internal/reach"
 )
 
 // caller is an authenticated client.
@@ -301,6 +303,9 @@ func (d *Daemon) profileStatus(c *caller, p *profile.Profile) control.ProfileSta
 	for _, s := range servers {
 		ps.DNS = append(ps.DNS, s.String())
 	}
+	if ps.State != backend.StateDown {
+		describeReach(&ps, p, st, servers)
+	}
 	ps.SocksPort = d.socksPort(p)
 	ps.Sessions = d.redactSessions(c, d.sessions.list(p.Name))
 	if ps.Sessions == nil {
@@ -347,6 +352,31 @@ func (d *Daemon) handleSubscribe(c *caller, conn *control.Conn) {
 			ev := e
 			if conn.Send(control.Response{Type: "event", Event: &ev}) != nil {
 				return
+			}
+		}
+	}
+}
+
+// describeReach fills in what the profile reaches through its tunnel and
+// whether its DNS servers are among it (issue #15). vpncell routes the
+// profile's [routing] routes into the tunnel and never falls back to the
+// host connection, so anything the server does not carry fails.
+func describeReach(ps *control.ProfileStatus, p *profile.Profile, st backend.Status, dns []netip.Addr) {
+	ps.NoDNS = len(dns) == 0
+	if st.RoutesSource == "" {
+		return
+	}
+	routes := reach.Intersect(p.RoutesP, st.Routes)
+	for _, r := range routes {
+		ps.Routes = append(ps.Routes, r.String())
+	}
+	ps.RoutesSource, ps.RedirectGateway = st.RoutesSource, st.RedirectGateway
+	ps.SplitTunnel = !reach.Default4(routes)
+	ps.Reaches = reach.Describe(routes)
+	if ps.SplitTunnel {
+		for _, a := range dns {
+			if !reach.Covers(routes, a) {
+				ps.DNSUnreachable = append(ps.DNSUnreachable, a.String())
 			}
 		}
 	}

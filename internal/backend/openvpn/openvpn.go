@@ -33,6 +33,12 @@ type Pushed struct {
 	Search    []string `json:"search"`
 	Addresses []string `json:"addresses"`
 	Time      int64    `json:"time"`
+	// Routes the server pushed and whether it pushed redirect-gateway.
+	Routes          []string `json:"routes,omitempty"`
+	RedirectGateway bool     `json:"redirect_gateway,omitempty"`
+	// RoutesKnown: written by a hook that records routes (older hooks
+	// did not; their tunnels show no route information until reconnect).
+	RoutesKnown bool `json:"routes_known,omitempty"`
 }
 
 func runDir(p string) string     { return brand.ProfileRunDir(p) }
@@ -367,6 +373,24 @@ func (b *Backend) Status(ctx context.Context, p *profile.Profile, ifname string)
 				}
 			}
 			st.PushedSearch = pu.Search
+		}
+		if pu.RoutesKnown {
+			st.RoutesSource = "pushed"
+			st.RedirectGateway = pu.RedirectGateway
+			for _, r := range pu.Routes {
+				if pf, err := netip.ParsePrefix(r); err == nil {
+					st.Routes = append(st.Routes, pf)
+				}
+			}
+			// The tunnel subnet is always reachable.
+			for _, a := range pu.Addresses {
+				if pf, err := netip.ParsePrefix(a); err == nil {
+					st.Routes = append(st.Routes, pf.Masked())
+				}
+			}
+			if pu.RedirectGateway {
+				st.Routes = append(st.Routes, netip.MustParsePrefix("0.0.0.0/0"))
+			}
 		}
 	}
 	return st, nil

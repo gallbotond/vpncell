@@ -118,19 +118,30 @@ type ProfileStatus struct {
 	// was lost, or when the profile was brought up if it never connected.
 	TryingSince int64 `json:"trying_since,omitempty"`
 	// Why the tunnel is not connected (OpenVPN; issue #14).
-	Reason     string        `json:"reason,omitempty"`      // code: no-reply, stalled-after-server-cert, tls-error, auth-failure, ping-restart, …
-	ReasonText string        `json:"reason_text,omitempty"` // one line for people
-	Hint       string        `json:"hint,omitempty"`        // what to check
-	ReasonAt   int64         `json:"reason_at,omitempty"`   // unix seconds of the last failed attempt
-	Retries    int           `json:"retries,omitempty"`     // failed attempts since the last connection
-	Log        string        `json:"log,omitempty"`         // command that shows the tunnel's log
-	RxBytes    uint64        `json:"rx_bytes"`
-	TxBytes    uint64        `json:"tx_bytes"`
-	SocksPort  int           `json:"socks_port"`
-	Interface  string        `json:"interface,omitempty"`
-	Addresses  []string      `json:"addresses,omitempty"`
-	DNS        []string      `json:"dns,omitempty"`
-	Sessions   []SessionInfo `json:"sessions"`
+	Reason     string `json:"reason,omitempty"`      // code: no-reply, stalled-after-server-cert, tls-error, auth-failure, ping-restart, …
+	ReasonText string `json:"reason_text,omitempty"` // one line for people
+	Hint       string `json:"hint,omitempty"`        // what to check
+	ReasonAt   int64  `json:"reason_at,omitempty"`   // unix seconds of the last failed attempt
+	Retries    int    `json:"retries,omitempty"`     // failed attempts since the last connection
+	Log        string `json:"log,omitempty"`         // command that shows the tunnel's log
+	// What the profile reaches through its tunnel (issue #15).
+	// routes_source "allowed-ips" (WireGuard): a hard limit. "pushed"
+	// (OpenVPN): the routes the server pushed; advisory.
+	Reaches         string   `json:"reaches,omitempty"` // e.g. "only 172.30.0.0/16; no IPv6"
+	Routes          []string `json:"routes,omitempty"`
+	RoutesSource    string   `json:"routes_source,omitempty"`
+	RedirectGateway bool     `json:"redirect_gateway,omitempty"`
+	SplitTunnel     bool     `json:"split_tunnel,omitempty"` // not every IPv4 address is reachable
+	NoDNS           bool     `json:"no_dns,omitempty"`       // no DNS servers: hostnames fail
+	// DNS servers outside the reachable networks (lookups to them fail).
+	DNSUnreachable []string      `json:"dns_unreachable,omitempty"`
+	RxBytes        uint64        `json:"rx_bytes"`
+	TxBytes        uint64        `json:"tx_bytes"`
+	SocksPort      int           `json:"socks_port"`
+	Interface      string        `json:"interface,omitempty"`
+	Addresses      []string      `json:"addresses,omitempty"`
+	DNS            []string      `json:"dns,omitempty"`
+	Sessions       []SessionInfo `json:"sessions"`
 }
 
 type SessionInfo struct {

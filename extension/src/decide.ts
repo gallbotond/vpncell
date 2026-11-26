@@ -15,6 +15,42 @@ export interface ProfileView {
   socks?: SocksDetails;
   exitIP?: string;
   problem?: TunnelProblem;
+  reach?: ReachView;
+}
+
+// What a profile reaches through its tunnel (issue #15).
+export interface ReachView {
+  text: string; // e.g. "only 172.30.0.0/16; no IPv6"
+  source: string; // "allowed-ips" (WireGuard, hard limit) | "pushed" (OpenVPN)
+  split: boolean;
+  redirectGateway: boolean;
+  noDNS: boolean;
+  dnsUnreachable: string[];
+}
+
+export function reachFromStatus(s: any): ReachView | undefined {
+  if (!s || s.state === "down") return undefined;
+  const v: ReachView = {
+    text: typeof s.reaches === "string" ? s.reaches : "",
+    source: typeof s.routes_source === "string" ? s.routes_source : "",
+    split: s.split_tunnel === true,
+    redirectGateway: s.redirect_gateway === true,
+    noDNS: s.no_dns === true,
+    dnsUnreachable: Array.isArray(s.dns_unreachable) ? s.dns_unreachable.filter((x: unknown) => typeof x === "string") : [],
+  };
+  if (!v.text && !v.noDNS) return undefined;
+  return v;
+}
+
+// Short notes for the popup: only what limits the profile. A full tunnel
+// with DNS gives nothing.
+export function describeReach(r: ReachView | undefined): string[] {
+  if (!r) return [];
+  const out: string[] = [];
+  if (r.split && r.text) out.push(r.source === "pushed" ? `server routes: ${r.text} (no redirect-gateway)` : `reaches ${r.text}`);
+  if (r.noDNS) out.push("no DNS: hostnames fail");
+  else if (r.dnsUnreachable.length > 0) out.push(`DNS ${r.dnsUnreachable.join(", ")} not reachable through the tunnel`);
+  return out;
 }
 
 // Why a tunnel is not connected, from `status` (daemon fields reason,

@@ -196,9 +196,7 @@ func cmdStatus(args []string) error {
 			fmt.Printf("  trying since:   %s\n", ago(s.TryingSince))
 		}
 		fmt.Printf("  traffic:        in %s, out %s\n", bytesStr(s.RxBytes), bytesStr(s.TxBytes))
-		if len(s.DNS) > 0 {
-			fmt.Printf("  DNS:            %s\n", strings.Join(s.DNS, " "))
-		}
+		printReach(s)
 		if s.SocksPort > 0 {
 			fmt.Printf("  SOCKS port:     127.0.0.1:%d\n", s.SocksPort)
 		}
@@ -471,4 +469,35 @@ func detectKind(path, text string) string {
 		return "wireguard"
 	}
 	return "openvpn"
+}
+
+// printReach prints what the profile reaches and its DNS (issue #15).
+func printReach(s control.ProfileStatus) {
+	switch s.RoutesSource {
+	case "allowed-ips":
+		fmt.Printf("  reaches:        %s\n", s.Reaches)
+	case "pushed":
+		rg := "no redirect-gateway"
+		if s.RedirectGateway {
+			rg = "redirect-gateway"
+		}
+		fmt.Printf("  server routes:  %s (pushed; %s)\n", s.Reaches, rg)
+	}
+	if s.SplitTunnel && s.State != "down" {
+		fmt.Println("                  other addresses fail: vpncell never falls back to your normal connection")
+	}
+	switch {
+	case s.State == "down":
+		if len(s.DNS) > 0 {
+			fmt.Printf("  DNS:            %s\n", strings.Join(s.DNS, " "))
+		}
+	case s.NoDNS:
+		fmt.Println("  DNS:            none (hostnames fail; set [dns] servers)")
+	default:
+		line := strings.Join(s.DNS, " ")
+		if len(s.DNSUnreachable) > 0 {
+			line += " (not reachable through the tunnel: " + strings.Join(s.DNSUnreachable, " ") + ")"
+		}
+		fmt.Printf("  DNS:            %s\n", line)
+	}
 }

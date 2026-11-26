@@ -18,6 +18,7 @@ import (
 	"github.com/gallbotond/vpncell/internal/netns"
 	"github.com/gallbotond/vpncell/internal/platform"
 	"github.com/gallbotond/vpncell/internal/profile"
+	"github.com/gallbotond/vpncell/internal/reach"
 	"github.com/vishvananda/netlink"
 )
 
@@ -262,7 +263,22 @@ func (d *Daemon) refreshStatus(p *profile.Profile, rt *rtProfile) backend.Status
 	if changed {
 		rt.pushedKey = key
 	}
+	rkey := fmt.Sprint(st.RoutesSource, st.Routes, st.RedirectGateway)
+	routesChanged := st.RoutesSource != "" && rkey != rt.routesKey
+	if routesChanged {
+		rt.routesKey = rkey
+	}
 	rt.mu.Unlock()
+	if routesChanged {
+		// What the tunnel carries (issue #15): OpenVPN's pushed routes and
+		// redirect-gateway, WireGuard's AllowedIPs.
+		var rs []string
+		for _, r := range st.Routes {
+			rs = append(rs, r.String())
+		}
+		d.log.Info("tunnel routes", "profile", p.Name, "source", st.RoutesSource, "routes", strings.Join(rs, ","),
+			"redirect_gateway", st.RedirectGateway, "reaches", reach.Describe(reach.Intersect(p.RoutesP, st.Routes)))
+	}
 	if changed {
 		// OpenVPN pushed (new) DNS settings: rewrite the resolver files.
 		// The hook does this too, so it also works while the daemon is
