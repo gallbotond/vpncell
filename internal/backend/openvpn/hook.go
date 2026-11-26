@@ -28,6 +28,11 @@ type HookEnv struct {
 	MTU        int
 	DNS        []string
 	Search     []string
+	// Routes the server pushed (route, route-ipv6) and whether it pushed
+	// redirect-gateway (issue #15). vpncell applies its own routes; these
+	// only describe what the server offers.
+	Routes          []netip.Prefix
+	RedirectGateway bool
 }
 
 var safeEnvName = regexp.MustCompile(`^vpntun[0-9]{1,4}$`)
@@ -108,6 +113,25 @@ func ParseHookEnv(get func(string) string, environ []string) (*HookEnv, error) {
 			addDNS(strings.Split(v, " ")[0])
 		case strings.HasPrefix(k, "dns_search_domain_"):
 			addSearch(v)
+		case strings.HasPrefix(k, "route_network_"):
+			n := strings.TrimPrefix(k, "route_network_")
+			a, err := netip.ParseAddr(v)
+			if err != nil || !a.Is4() {
+				continue
+			}
+			bits := 32
+			if m := net.ParseIP(get("route_netmask_" + n)).To4(); m != nil {
+				bits, _ = net.IPMask(m).Size()
+			}
+			e.Routes = append(e.Routes, netip.PrefixFrom(a, bits).Masked())
+		case strings.HasPrefix(k, "route_ipv6_network_"):
+			if pf, err := netip.ParsePrefix(v); err == nil {
+				e.Routes = append(e.Routes, pf.Masked())
+			} else if a, err := netip.ParseAddr(v); err == nil {
+				e.Routes = append(e.Routes, netip.PrefixFrom(a, 128))
+			}
+		case k == "redirect_gateway":
+			e.RedirectGateway = v != "" && v != "0"
 		}
 	}
 	return e, nil
@@ -162,7 +186,10 @@ func RunHook(args []string, writeDNS func(p *profile.Profile, servers []netip.Ad
 		fmt.Fprintln(os.Stderr, "ovpn-hook: configure:", err)
 		return 1
 	}
-	pu := Pushed{DNS: e.DNS, Search: e.Search, Time: time.Now().Unix()}
+	pu := Pushed{DNS: e.DNS, Search: e.Search, Time: time.Now().Unix(), RedirectGateway: e.RedirectGateway, RoutesKnown: true}
+	for _, r := range e.Routes {
+		pu.Routes = append(pu.Routes, r.String())
+	}
 	for _, a := range e.Addresses {
 		pu.Addresses = append(pu.Addresses, a.String())
 	}

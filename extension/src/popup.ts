@@ -1,10 +1,10 @@
 // Popup: per container its profile, state and exit IP; change the mapping;
 // bring profiles up or down.
-import { describeProblem, TunnelProblem } from "./decide.js";
+import { describeProblem, describeReach, ReachView, TunnelProblem } from "./decide.js";
 interface PopupState {
   containers: { id: string; name: string; color: string; icon: string }[];
   mapping: Record<string, string>;
-  profiles: Record<string, { state: string; autostart: string; exitIP?: string; problem?: TunnelProblem }>;
+  profiles: Record<string, { state: string; autostart: string; exitIP?: string; problem?: TunnelProblem; reach?: ReachView }>;
   daemonUp: boolean;
   problems: Record<string, string>;
 }
@@ -55,6 +55,10 @@ async function render(): Promise<void> {
     if (why) {
       state.append(el("div", { class: "why", title: why.detail }, why.summary));
       if (why.detail) state.append(el("div", { class: "hint" }, why.detail));
+    }
+    // What the profile reaches; no fallback to the normal connection (issue #15).
+    if (mapped && !s.problems[mapped]) {
+      for (const note of describeReach(p?.reach)) state.append(el("div", { class: "reach" }, note));
     }
     const ip = el("td", { class: "exitip" }, p?.exitIP ?? "");
     const actions = el("td");

@@ -396,6 +396,39 @@ for the connection; if the tunnel is not connected by then, it prints the
 reason known so far and the `journalctl` command, and exits with status 3.
 The profile keeps trying in the background.
 
+### I can't reach the internet (or some hosts) through a profile
+
+A profile sends **all** its traffic into its tunnel (`[routing] routes`,
+default `0.0.0.0/0` and `::/0`) and never falls back to your normal
+connection. If the VPN server is a **split tunnel**, which offers only some
+networks, every other address fails in the profile:
+
+| Server | What happens to other addresses |
+|---|---|
+| WireGuard with `AllowedIPs = 172.30.0.0/16` | dropped locally, connections fail at once |
+| OpenVPN that pushes `route 172.30.0.0 255.255.0.0` and no `redirect-gateway` | sent to the server, which does not forward them: timeouts |
+| No DNS servers (none in the config, none pushed) | every hostname lookup fails |
+
+vpncell tells you:
+
+- `vpncell import` warns when a WireGuard config's `AllowedIPs` have no
+  default route, when it has no DNS servers or a DNS server outside
+  `AllowedIPs`, and when an OpenVPN config has no `redirect-gateway`.
+- `vpncell status` shows `reaches:` (WireGuard `AllowedIPs`, a hard
+  limit) or `server routes:` (OpenVPN pushed routes and whether
+  `redirect-gateway` was pushed), `DNS: none`, and DNS servers that are
+  not reachable through the tunnel; `--json` has `reaches`, `routes`,
+  `routes_source`, `redirect_gateway`, `split_tunnel`, `no_dns` and
+  `dns_unreachable`. The Firefox popup shows the same notes.
+- The daemon logs what each tunnel carries
+  (`journalctl -u vpncelld | grep "tunnel routes"`).
+
+A profile reaches the internet only if its server routes the default route
+(WireGuard `AllowedIPs = 0.0.0.0/0, ::/0`; OpenVPN `redirect-gateway def1`)
+and forwards (NATs) that traffic, and DNS is set (`[dns] servers` or
+pushed). This is intended: falling back to the host connection would break
+the guarantee that profile traffic never goes direct.
+
 ## Import safety
 
 Imported configs are untrusted. Nothing from a config is ever executed.

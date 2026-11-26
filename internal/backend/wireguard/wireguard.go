@@ -328,7 +328,13 @@ func (b *Backend) Status(ctx context.Context, p *profile.Profile, ifname string)
 			}
 			st.RxBytes += uint64(peer.ReceiveBytes)
 			st.TxBytes += uint64(peer.TransmitBytes)
+			for _, a := range peer.AllowedIPs {
+				if pf, ok := ipnetToPrefix(&a); ok {
+					st.Routes = append(st.Routes, pf.Masked())
+				}
+			}
 		}
+		st.RoutesSource = "allowed-ips"
 		return nil
 	})
 	if err != nil {

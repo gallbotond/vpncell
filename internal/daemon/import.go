@@ -129,8 +129,6 @@ func (d *Daemon) importWireGuard(req *control.ImportRequest, dir string) (string
 	}
 	body := fmt.Sprintf("backend   = \"wireguard\"\n\n[wireguard]\nconfig = %s\n\n[dns]\nservers = %s\nsearch  = %s\n",
 		tomlString(path), tomlList(servers), tomlList(nonNil(cfg.DNSSearch)))
-	if len(servers) == 0 {
-		rep.Warnings = append(rep.Warnings, "the config sets no DNS servers: name lookups in this profile fail until you add [dns] servers")
-	}
+	rep.Warnings = append(rep.Warnings, cfg.ReachWarnings()...)
 	return body, rep, nil
 }

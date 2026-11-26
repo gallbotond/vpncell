@@ -15,6 +15,8 @@ import {
   ProxyResult,
   TunnelProblem,
   problemFromStatus,
+  reachFromStatus,
+  ReachView,
 } from "./decide.js";
 
 const st: State = { ready: false, mapping: {}, profiles: {}, daemonUp: false, daemonDownSince: Date.now() };
@@ -132,7 +134,7 @@ async function refresh(): Promise<void> {
   for (const s of status) {
     seen.add(s.name);
     const old = st.profiles[s.name];
-    const v: ProfileView = { state: s.state, autostart: s.autostart, exitIP: s.exit_ip || undefined, socks: old?.socks, problem: problemFromStatus(s) };
+    const v: ProfileView = { state: s.state, autostart: s.autostart, exitIP: s.exit_ip || undefined, socks: old?.socks, problem: problemFromStatus(s), reach: reachFromStatus(s) };
     st.profiles[s.name] = v;
     // Credentials change only when the daemon restarted after a reboot or
     // the port changed; fetch them when unknown or when the port moved.
@@ -324,8 +326,8 @@ browser.runtime.onMessage.addListener(async (msg: any, sender) => {
       try {
         containers = await browser.contextualIdentities.query({});
       } catch {}
-      const profiles: Record<string, { state: string; autostart: string; exitIP?: string; problem?: TunnelProblem }> = {};
-      for (const [n, p] of Object.entries(st.profiles)) profiles[n] = { state: p.state, autostart: p.autostart, exitIP: p.exitIP, problem: p.problem };
+      const profiles: Record<string, { state: string; autostart: string; exitIP?: string; problem?: TunnelProblem; reach?: ReachView }> = {};
+      for (const [n, p] of Object.entries(st.profiles)) profiles[n] = { state: p.state, autostart: p.autostart, exitIP: p.exitIP, problem: p.problem, reach: p.reach };
       const prob: Record<string, string> = {};
       for (const [k, v] of problems()) prob[k] = describe(v);
       return {

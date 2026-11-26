@@ -36,6 +36,16 @@ type Status struct {
 	LostAt time.Time
 	// LogHint is a command that shows the tunnel's log.
 	LogHint string
+
+	// What the tunnel carries (issue #15). WireGuard: the peers'
+	// AllowedIPs, a hard limit (RoutesSource "allowed-ips"). OpenVPN: the
+	// routes the server pushed plus the tunnel subnet, and whether it
+	// pushed redirect-gateway (RoutesSource "pushed"); advisory, since
+	// vpncell sends everything into the tunnel and only the server knows
+	// what it forwards. Empty RoutesSource: unknown.
+	Routes          []netip.Prefix
+	RoutesSource    string
+	RedirectGateway bool
 }
 
 const (

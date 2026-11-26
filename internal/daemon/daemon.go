@@ -71,6 +71,8 @@ type rtProfile struct {
 	retryAt time.Time
 	// pushedKey remembers the last pushed DNS written to the resolver files.
 	pushedKey string
+	// routesKey remembers the last logged tunnel routes (issue #15).
+	routesKey string
 }
 
 func (r *rtProfile) getState() string {

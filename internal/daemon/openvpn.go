@@ -87,6 +87,7 @@ func (d *Daemon) importOpenVPN(req *control.ImportRequest, dir string) (string, 
 	}
 	body := fmt.Sprintf("backend   = \"openvpn\"\n\n[openvpn]\nconfig = %s\n\n[dns]\nservers = []\nsearch  = []\nuse_pushed = true\n", tomlString(path))
 	rep.Warnings = append(rep.Warnings, "DNS servers come from the server's pushes (dns.use_pushed = true); add [dns] servers if it pushes none")
+	rep.Warnings = append(rep.Warnings, cfg.ReachWarnings()...)
 	return body, rep, nil
 }
 
