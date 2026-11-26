@@ -507,7 +507,7 @@ search     = ["corp.example"]
 use_pushed = true              # OpenVPN: also use pushed servers/domains
 
 [access]
-users  = ["botond"]            # root always allowed; caller must also be in group vpncell
+users  = ["alice"]             # root always allowed; caller must also be in group vpncell
 groups = []
 
 [routing]
@@ -828,7 +828,7 @@ that fail closed holds without it.
 
 **Test VM `free-vm`** (Debian 12, Docker, `/opt/vpn-lab/docker-compose.yml`):
 
-- wg-easy 15 (plain kernel WireGuard), `[2600:1900:4021:668::]:51820`,
+- wg-easy 15 (plain kernel WireGuard), `[<VM IPv6>]:51820`,
   clients `10.8.0.0/24` + `fdcc:ad94:bacf:61a4::cafe:0/112`, client
   `AllowedIPs = 172.30.0.0/16`, no DNS pushed. Two clients exist.
 - OpenVPN 2.x server (d3vilh image), UDP6 1194, `10.0.70.0/24`, topology
@@ -870,7 +870,7 @@ tests on `ens18`.
 2. **The OpenVPN tunnel has no IPv6, and the VM has no IPv4 egress**, so an
    OpenVPN profile cannot reach the internet at all; the exit-IP check
    (`curl https://ifconfig.me`) works only for WireGuard (exit
-   `2600:1900:4021:668::`). Proposal: enable `server-ipv6` plus NAT66 in the
+   the VM's IPv6 address). Proposal: enable `server-ipv6` plus NAT66 in the
    OpenVPN container (or add Cloud NAT for IPv4). Without it, OpenVPN exit
    checks use `whoami`'s `RemoteAddr` instead.
 3. **One server per VPN type.** Two WireGuard profiles against the same
@@ -918,7 +918,7 @@ tests are Go tests behind a build tag (`-tags=integration`), run with `sudo`.
 | Browser | Go WebDriver client → geckodriver, snap and tarball Firefox, headless. Containers are created through Marionette's chrome context; the mapping is set through the real popup page. Exit/identity per container; daemon stopped → error page, no direct packets. |
 | No sharing between containers | Two containers, same hostname (`web.vpn-lab.test`), different profiles, loaded at the same time and repeatedly; each sees its own page. |
 | Default tabs and private windows | Direct (they see the host's normal path), regardless of mappings. |
-| No host or LAN access | From a shell and a container: host `127.0.0.1` dev server, `127.0.0.53`, `192.168.1.139`, LAN gateway are unreachable; nftables on and off. |
+| No host or LAN access | From a shell and a container: host `127.0.0.1` dev server, `127.0.0.53`, the host's LAN address, LAN gateway are unreachable; nftables on and off. |
 | Import safety | Fixture configs with every rejected directive; a canary hook (`up /tmp/canary`) must never run; reports must list what was stripped. |
 | Daemon restart | `systemctl restart vpncelld` during a running shell (with `ping`/`curl` loop) and a container page load loop; both keep working; capture shows no leak. Also `kill -9` the daemon. |
 | `down` with sessions | refuse (lists sessions), `--force` (sessions alive, no network; `up` restores it), `--kill` (sessions gone). |

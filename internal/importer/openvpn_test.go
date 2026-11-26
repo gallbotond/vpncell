@@ -8,7 +8,7 @@ import (
 const goodOVPN = `client
 dev tun
 proto udp
-remote 2600:1900:4021:668:: 1194 udp
+remote 2001:db8::1 1194 udp
 resolv-retry infinite
 user nobody
 group nogroup
