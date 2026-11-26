@@ -405,11 +405,12 @@ func cmdImport(args []string) error {
 	authFile := fs.String("auth-file", "", "OpenVPN username/password file (two lines)")
 	autostart := fs.String("autostart", "", "boot, on-use (default) or manual")
 	replace := fs.Bool("replace", false, "replace an existing profile (it must be down)")
+	tlsAuth := fs.Bool("tls-auth", false, "OpenVPN: use the config's tls-crypt key as tls-auth with key-direction 1 (only for servers that use tls-auth; README \"OpenVPN profiles\")")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 2 {
-		return fmt.Errorf("usage: sudo vpncell import [--user u] [--group g] [--auth-file f] [--autostart a] [--replace] <name> <wg.conf|file.ovpn>")
+		return fmt.Errorf("usage: sudo vpncell import [--user u] [--group g] [--auth-file f] [--autostart a] [--replace] [--tls-auth] <name> <wg.conf|file.ovpn>")
 	}
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("import needs root: sudo vpncell import ...")
@@ -420,7 +421,7 @@ func cmdImport(args []string) error {
 			users = append(users, su)
 		}
 	}
-	req, err := buildImport(name, path, *authFile)
+	req, err := buildImport(name, path, *authFile, *tlsAuth)
 	if err != nil {
 		return err
 	}
