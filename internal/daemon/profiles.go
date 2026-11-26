@@ -106,6 +106,11 @@ func nextBackoff(rt *rtProfile) time.Duration {
 
 // prepareNamespace installs nftables and writes the resolver files.
 func (d *Daemon) prepareNamespace(p *profile.Profile, ifn string) error {
+	// Unprivileged ping in the profile (issue #10). Runs on every up and on
+	// adoption, so namespaces made by older versions get it too.
+	if err := setPingGroupRange(p.Name); err != nil {
+		d.log.Warn("ping_group_range", "profile", p.Name, "err", err)
+	}
 	if p.NftablesEnabled() {
 		if err := firewall.Install(p.Name, ifn); err != nil {
 			return fmt.Errorf("nftables: %w", err)
@@ -393,4 +398,23 @@ func removeHostLinks(log *slog.Logger) {
 			netlink.LinkDel(l)
 		}
 	}
+}
+
+// setPingGroupRange copies the host's net.ipv4.ping_group_range into the
+// profile namespace (DECISIONS.md, issue #10). The setting is per network
+// namespace and starts as "1 0" (nobody) in a new one; the host's value is
+// the administrator's policy for who may use ICMP datagram sockets.
+func setPingGroupRange(name string) error {
+	host, err := os.ReadFile(platform.PingGroupRangeFile)
+	if err != nil {
+		return err
+	}
+	v := strings.Join(strings.Fields(string(host)), " ")
+	return netns.Do(name, func() error {
+		cur, err := os.ReadFile(platform.PingGroupRangeFile)
+		if err == nil && strings.Join(strings.Fields(string(cur)), " ") == v {
+			return nil
+		}
+		return os.WriteFile(platform.PingGroupRangeFile, []byte(v+"\n"), 0o644)
+	})
 }

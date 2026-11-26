@@ -145,3 +145,31 @@ The user reviewed and approved `DESIGN.md`, with these decisions:
   never upload the extension to Mozilla. A design part that does not work is
   replaced by an alternative that keeps the no-leak and fail-closed
   guarantees, recorded in `DESIGN.md` §12.
+
+## ping in profile sessions (issue #10, 2026-11-26)
+
+Decided by the build session (the issue left the choice open; DESIGN.md
+§8.1 step 4 requires sessions without capabilities and with
+`no_new_privs`).
+
+- **`net.ipv4.ping_group_range`** is set in every profile namespace to the
+  **host's value** (Ubuntu: `0 2147483647`), when the namespace is prepared
+  on `up` and again when the daemon adopts it after a restart. A new
+  namespace starts with `1 0` (nobody). Copying the host keeps the
+  administrator's policy; limiting it to the `vpncell` group would break
+  root's sessions and users whose session lacks that group. The setting
+  also covers ICMPv6 datagram sockets.
+- **File-capability `ping`:** in the session's private mount namespace,
+  `/usr/bin/ping` is bind-mounted onto itself `nosuid` (read-only, nodev).
+  The kernel ignores file capabilities on a `nosuid` mount, so `ping` runs
+  with the user's own, empty capabilities and uses an ICMP datagram socket
+  instead of failing `execve` with `EPERM`. The binary stays the system's
+  own (updates apply at once; no copy to keep in sync).
+- **Rejected:** keeping `CAP_NET_RAW` for sessions (against §8.1: raw
+  sockets in the profile namespace would still let a session forge any
+  packet into the tunnel); shipping a `vpncell ping` helper (another
+  program to maintain, and users type `ping`); a capability-free copy of
+  the binary (goes stale on iputils updates).
+- The list of binaries treated this way is `platform.CapabilityBinaries`
+  (only `ping` today; programs that really need raw sockets, such as
+  `arping`, stay unusable in a profile).
