@@ -38,6 +38,7 @@ Profiles:
 
 Administration (root):
   import [options] <name> <wg.conf|file.ovpn>
+  remove [--force|--kill] <profile> take a profile down and delete its files
   reload                            re-read /etc/vpncell/profiles.d
 
 Firefox:
@@ -77,6 +78,8 @@ func main() {
 		code, err = cmdCurrent(args)
 	case "import":
 		err = cmdImport(args)
+	case "remove":
+		err = cmdRemove(args)
 	case "reload":
 		_, err = client.Call(control.Request{Type: "reload"})
 	case "firefox-setup":
@@ -249,6 +252,25 @@ func cmdUpDown(op string, args []string) error {
 		}
 		fmt.Printf("  check again:    vpncell status %s\n", s.Name)
 		return errNotConnected
+	}
+	fmt.Println(r.Message)
+	return nil
+}
+
+// cmdRemove deletes a profile (issue #17).
+func cmdRemove(args []string) error {
+	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
+	force := fs.Bool("force", false, "remove even while up or with active sessions (they lose network)")
+	kill := fs.Bool("kill", false, "end active sessions, then remove the profile")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: sudo vpncell remove [--force|--kill] <profile>")
+	}
+	r, err := client.Call(control.Request{Type: "remove", Profile: fs.Arg(0), Force: *force, Kill: *kill})
+	if err != nil {
+		return err
 	}
 	fmt.Println(r.Message)
 	return nil

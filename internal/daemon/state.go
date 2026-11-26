@@ -118,12 +118,23 @@ func (st *stateStore) port(profile string, fixed, lo, hi int) (int, error) {
 	return 0, fmt.Errorf("no free SOCKS port in %d-%d", lo, hi)
 }
 
-func (st *stateStore) forget(profile string) {
+// prune forgets the index and port of every profile not in keep, also
+// those deleted while the daemon was stopped (issue #17).
+func (st *stateStore) prune(keep func(string) bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	delete(st.s.Ports, profile)
-	delete(st.s.Indexes, profile)
-	st.saveLocked()
+	changed := false
+	for _, m := range []map[string]int{st.s.Ports, st.s.Indexes} {
+		for name := range m {
+			if !keep(name) {
+				delete(m, name)
+				changed = true
+			}
+		}
+	}
+	if changed {
+		st.saveLocked()
+	}
 }
 
 // Secret is a string that never appears in logs.

@@ -44,6 +44,9 @@ func (d *Daemon) up(p *profile.Profile, rt *rtProfile) error {
 }
 
 func (d *Daemon) upLocked(p *profile.Profile, rt *rtProfile) error {
+	if rt.removed {
+		return fmt.Errorf("profile %q was removed", p.Name)
+	}
 	b := d.backends[p.Backend]
 	if b == nil {
 		return fmt.Errorf("backend %q is not available", p.Backend)
@@ -197,6 +200,10 @@ func (d *Daemon) startRuntime(p *profile.Profile, rt *rtProfile) error {
 func (d *Daemon) down(p *profile.Profile, rt *rtProfile, force, kill bool) error {
 	rt.op.Lock()
 	defer rt.op.Unlock()
+	return d.downLocked(p, rt, force, kill)
+}
+
+func (d *Daemon) downLocked(p *profile.Profile, rt *rtProfile, force, kill bool) error {
 	live := d.sessions.list(p.Name)
 	if len(live) > 0 && !force && !kill {
 		return &control.Error{Code: control.ErrBusy,
@@ -303,6 +310,7 @@ func (d *Daemon) supervise() {
 		case <-t.C:
 		}
 		d.sessions.gc(d)
+		d.collectRemoved()
 		d.mu.Lock()
 		names := profile.Names(d.profiles)
 		d.mu.Unlock()

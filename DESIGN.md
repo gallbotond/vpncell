@@ -598,6 +598,7 @@ directives are rejected instead of slipping through:
 | `socks {profile}` | allowed users | `{host:"127.0.0.1", port, username, password}` |
 | `subscribe` | any | stream of `profile_changed {profile, state}` and `credentials_changed {profile}` events (only profiles the caller may use) |
 | `import {name, files, options}` | root | report of kept/stripped/rejected items |
+| `remove {profile, force, kill}` | root | take the profile down, delete its profile file and `secrets/<name>/`, free its index and SOCKS port (#17); without flags, error while it is up or has sessions |
 | `reload` | root | re-read profile files |
 
 `vpncell status --json` prints the `status` reply. Errors are
@@ -758,6 +759,19 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     `CAP_SYS_PTRACE` in its bounding set, and none is added): the `stat`
     runs on a throwaway thread with fsuid/fsgid set to the caller's
     (`PTRACE_MODE_READ_FSCREDS` then sees the same user).
+35. **`remove` and vanished profiles** (#17). `remove` refuses while the
+    profile is up or has sessions; `--force` takes it down (sessions keep
+    running without network), `--kill` ends the sessions. It deletes only
+    `profiles.d/<name>.toml` and `secrets/<name>/`; config files a
+    hand-written profile keeps elsewhere are named in the reply, not
+    deleted. `reload` no longer orphans a profile whose file is gone while
+    it is in use: it takes it down like `remove --force`. A file that is
+    still there but no longer loads (a typo while editing) keeps the
+    running version, with an error in the journal, so an edit cannot cut a
+    live tunnel. The namespace of a removed profile stays while its
+    sessions run and is deleted after the last one exits. At daemon start,
+    a namespace without a profile has its OpenVPN unit stopped and its
+    links deleted.
 
 ## 13. Lifecycle
 

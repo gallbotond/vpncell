@@ -15,7 +15,9 @@ import (
 	"github.com/gallbotond/vpncell/internal/control"
 	"github.com/gallbotond/vpncell/internal/dnsfiles"
 	"github.com/gallbotond/vpncell/internal/importer"
+	"github.com/gallbotond/vpncell/internal/netns"
 	"github.com/gallbotond/vpncell/internal/profile"
+	"github.com/vishvananda/netlink"
 )
 
 // hookBinary is the vpncelld path openvpn runs as its hook: the packaged
@@ -97,4 +99,33 @@ func (d *Daemon) importOpenVPN(req *control.ImportRequest, dir string) (string, 
 func WriteProfileDNS(p *profile.Profile, pushed []netip.Addr, search []string) error {
 	d := &Daemon{}
 	return d.writeDNSFiles(p, pushed, search)
+}
+
+// stopUnknownTunnel removes the tunnel of a namespace whose profile no
+// longer exists (its file was deleted while the daemon was stopped; issue
+// #17): it stops the profile's OpenVPN unit and deletes every link in the
+// namespace but lo. Sessions in the namespace keep running without network.
+func (d *Daemon) stopUnknownTunnel(name string) {
+	if c, err := sdbus.NewSystemConnectionContext(d.ctx); err == nil {
+		ctx, cancel := context.WithTimeout(d.ctx, 30*time.Second)
+		ch := make(chan string, 1)
+		if _, err := c.StopUnitContext(ctx, openvpn.UnitName(name), "replace", ch); err == nil {
+			select {
+			case <-ch:
+			case <-ctx.Done():
+			}
+		}
+		cancel()
+		c.Close()
+	}
+	netns.Do(name, func() error {
+		links, _ := netlink.LinkList()
+		for _, l := range links {
+			if l.Attrs().Name != "lo" {
+				netlink.LinkDel(l)
+			}
+		}
+		return nil
+	})
+	os.Remove(openvpn.PushedPath(name))
 }
