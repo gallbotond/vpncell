@@ -342,13 +342,20 @@ Mozilla.)
 
 ## OpenVPN profiles
 
-`sudo vpncell import NAME file.ovpn [--auth-file creds.txt]` imports an
+`sudo vpncell import NAME file.ovpn [--auth-file creds.txt] [--tls-auth]` imports an
 OpenVPN client config. Files it references (`ca`, `cert`, `key`,
 `tls-auth`, `tls-crypt`, …) and inline blocks are stored root-only in
 `/etc/vpncell/secrets/NAME/`. Logins use stored credentials only: a config
 that needs a password prompt, a one-time code or an encrypted private key
 is rejected (decrypt the key first; give username and password with
 `--auth-file` or an `<auth-user-pass>` block).
+
+`--tls-auth` is for servers that use `tls-auth` while the config carries
+the key as `<tls-crypt>` (some openvpn-ui setups): it imports the same key
+as `<tls-auth>` with `key-direction 1`. Use it only when you know the
+server uses tls-auth; for a tls-crypt server it makes the profile fail
+(`vpncell status` then says "no reply from the server"). vpncell never
+does this on its own.
 
 Each OpenVPN profile runs as the systemd unit `vpncell-openvpn@NAME`
 (`journalctl -u vpncell-openvpn@NAME` for its log). vpncell adds its own
@@ -518,10 +525,23 @@ of every edited file are next to it as `*.bak-vpncell-<timestamp>`):
    `dhcp-option DNS 172.30.2.53`, `dhcp-option DOMAIN vpn-lab.test` and
    `route-ipv6 2000::/3` to that client only; other clients are unchanged.
 
-The OpenVPN client config that openvpn-ui generates carries the server's
-`ta.key` as `<tls-crypt>`, but the VM's server uses `tls-auth pki/ta.key 0`,
-so it cannot connect as downloaded. The fetch script rewrites it locally to
-`<tls-auth>` with `key-direction 1` (same key; nothing changed on the VM).
+4. **tls-crypt on the OpenVPN server** (2026-11-26, issue #13). openvpn-ui
+   always writes the server's `ta.key` into downloaded client configs as
+   `<tls-crypt>`, but the server used `tls-auth pki/ta.key 0`, so a
+   downloaded config could not connect without a manual rewrite. Changed
+   `tls-auth pki/ta.key 0` to `tls-crypt pki/ta.key` in
+   `/opt/vpn-lab/openvpn/server.conf` and the same value in openvpn-ui's
+   database (`/opt/vpn-lab/openvpn/db/data.db`, table `o_v_config`, column
+   `t_l_s_control_channel`), so a later save in the UI keeps it; then
+   `docker restart openvpn`. Backups: `server.conf.bak-vpncell-20261126072854`,
+   `db/data.db.bak-vpncell-20261126072854`. The key is unchanged.
+   Clients that still use `<tls-auth>` must be re-downloaded from the UI
+   (`proxmox-test`, on another machine). Note: saving the server settings
+   in openvpn-ui regenerates `server.conf` from its database, which does
+   not contain the `server-ipv6` line from item 2.
+
+Client configs downloaded from openvpn-ui now work as they are;
+`test/scripts/vm-fetch-configs.sh` no longer rewrites them.
 
 `test/scripts/vm-fetch-configs.sh` downloads the two client configs to
 `/var/lib/vpncell-test/vm` (root-only), reading the admin credentials from

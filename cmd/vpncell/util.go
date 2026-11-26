@@ -9,6 +9,7 @@ import (
 
 	"github.com/gallbotond/vpncell/internal/brand"
 	"github.com/gallbotond/vpncell/internal/control"
+	"github.com/gallbotond/vpncell/internal/importer"
 )
 
 func runGetent(uid string) (string, error) {
@@ -47,10 +48,18 @@ func readLimited(path string) (string, error) {
 
 // buildImport reads a config and, for OpenVPN, the files it references. The
 // daemon decides what to keep; nothing here interprets the content.
-func buildImport(name, path, authFile string) (*control.ImportRequest, error) {
+func buildImport(name, path, authFile string, tlsAuth bool) (*control.ImportRequest, error) {
 	text, err := readLimited(path)
 	if err != nil {
 		return nil, err
+	}
+	if tlsAuth {
+		if detectKind(path, text) != "openvpn" {
+			return nil, fmt.Errorf("--tls-auth is for OpenVPN configs")
+		}
+		if text, err = importer.TLSCryptToTLSAuth(text); err != nil {
+			return nil, err
+		}
 	}
 	req := &control.ImportRequest{Name: name, Kind: detectKind(path, text), Config: text, Files: map[string]string{}}
 	if authFile != "" {
