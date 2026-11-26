@@ -54,6 +54,7 @@ func main() {
 		os.Exit(2)
 	}
 	cmd, args := os.Args[1], os.Args[2:]
+	client.Notice = os.Stderr
 	var err error
 	code := 0
 	switch cmd {

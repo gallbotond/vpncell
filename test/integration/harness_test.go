@@ -96,9 +96,17 @@ func sh(script string) (string, error) { return run("", "bash", "-c", script) }
 
 func setup() error {
 	lab.Cleanup()
-	// Fresh daemon state: stop it, take down leftovers of earlier runs.
-	sh("systemctl stop vpncelld; systemctl clean --what=fdstore vpncelld 2>/dev/null; systemctl stop 'vpncell-openvpn@*' 2>/dev/null; systemctl stop vpncell-sessions.slice 2>/dev/null")
-	sh(`for n in /run/netns/vpncell-*; do [ -e "$n" ] && umount -l "$n"; rm -f "$n"; done; rm -rf /run/vpncell`)
+	_, err := sh("systemctl is-active --quiet vpncelld")
+	daemonWasActive = err == nil
+	// Take down leftovers of earlier runs. Only test profiles (t-*, vm-*)
+	// are touched: the host may run the user's own profiles, their tunnels
+	// and sessions (they survive the daemon restart below).
+	sh("systemctl stop vpncelld")
+	if !otherProfiles() {
+		sh("systemctl clean --what=fdstore vpncelld 2>/dev/null")
+	}
+	sh("systemctl stop 'vpncell-openvpn@t-*' 'vpncell-openvpn@vm-*' 2>/dev/null")
+	sh(`for n in /run/netns/vpncell-t-* /run/netns/vpncell-vm-*; do [ -e "$n" ] && umount -l "$n"; rm -f "$n"; done; rm -rf /run/vpncell/profiles/t-* /run/vpncell/profiles/vm-*`)
 	sh("rm -f /etc/vpncell/profiles.d/t-*.toml /etc/vpncell/profiles.d/vm-*.toml; rm -rf /etc/vpncell/secrets/t-* /etc/vpncell/secrets/vm-*")
 	if out, err := sh("systemctl start vpncelld"); err != nil {
 		return fmt.Errorf("start daemon: %v: %s", err, out)
@@ -153,9 +161,24 @@ func teardown() {
 	}
 	sh("rm -f /etc/vpncell/profiles.d/t-*.toml /etc/vpncell/profiles.d/vm-*.toml; rm -rf /etc/vpncell/secrets/t-* /etc/vpncell/secrets/vm-*")
 	run("", cliPath, "reload")
-	if os.Getenv("VPNCELL_TEST_KEEP_DAEMON") == "" {
+	if os.Getenv("VPNCELL_TEST_KEEP_DAEMON") == "" && !daemonWasActive {
 		sh("systemctl stop vpncelld")
 	}
+}
+
+// daemonWasActive: the daemon ran before the tests; it keeps running after.
+var daemonWasActive bool
+
+// otherProfiles reports whether profiles other than the test ones exist.
+func otherProfiles() bool {
+	ms, _ := filepath.Glob("/etc/vpncell/profiles.d/*.toml")
+	for _, m := range ms {
+		b := filepath.Base(m)
+		if !strings.HasPrefix(b, "t-") && !strings.HasPrefix(b, "vm-") {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- running things as users ----

@@ -34,7 +34,8 @@ configure)
 		fi
 	fi
 	if [ -z "$2" ]; then
-		echo "vpncell: add users to the 'vpncell' group (sudo usermod -aG vpncell USER; log in again),"
+		echo "vpncell: add users to the 'vpncell' group (sudo usermod -aG vpncell USER), then log out of the"
+		echo "vpncell: desktop and in again (a new terminal is not enough; 'newgrp vpncell' works for one shell),"
 		echo "vpncell: import a profile with: sudo vpncell import NAME FILE"
 		echo "vpncell: for Firefox see /usr/share/doc/vpncell/README.md (extension, firefox-policy)"
 	fi
