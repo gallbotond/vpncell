@@ -26,6 +26,21 @@ sudo apt install ./bin/vpncell_*_amd64.deb
 sudo usermod -aG vpncell "$USER"  # then log out and in again
 ```
 
+The new group applies only to login sessions that start **after**
+`usermod`: log out of the desktop and in again (opening a new terminal is
+not enough). To use vpncell at once without logging out, for example for a
+demo, start a shell that has the group, or run one command with it:
+
+```bash
+newgrp vpncell                    # this shell only
+sg vpncell -c 'vpncell list'      # one command
+```
+
+If a command says `permission denied on /run/vpncell/control.sock`, the
+message tells you which case it is: not in the group (`usermod`), or in the
+group but in a login session that started before (`newgrp`/`sg`, or log in
+again).
+
 The package installs:
 
 | Path | What |
@@ -68,6 +83,19 @@ Firefox policy file.
 
 You must be in the `vpncell` group to talk to the daemon, and listed in the
 profile's `[access]` section (`import` adds the user who ran `sudo`).
+
+### When the daemon is not running
+
+Commands never hang on a stopped daemon. systemd keeps the control socket
+open while `vpncelld` is stopped (so restarts and upgrades never refuse a
+connection), which means a command cannot see at once that nobody is
+there. After 2 s without an answer it prints `waiting for vpncelld…` and
+checks the unit: if `vpncelld.service` is stopped it fails with
+`vpncelld is stopped (start it with: sudo systemctl start vpncelld; …)`.
+While the daemon is restarting (`systemctl restart`, a package upgrade, a
+crash followed by `Restart=`) the command keeps waiting and then
+completes; it gives up after 30 s with `vpncelld is not answering`.
+The Firefox extension's native host uses the same rules.
 
 ### Building from source
 
