@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -115,7 +116,7 @@ func RunHelper() int {
 		return fail(conn, "drop privileges: %v", err)
 	}
 
-	started := control.Response{Type: "started", SessionID: spec.ID}
+	started := control.Response{Type: "started", SessionID: spec.ID, Chain: spec.Chain}
 	if master != nil {
 		err = conn.Send(started, master)
 		master.Close() // the client holds the only reference now
@@ -264,14 +265,16 @@ func startChild(spec *Spec, stdio [3]*os.File) (*exec.Cmd, error) {
 }
 
 func sessionEnv(spec *Spec) []string {
-	out := make([]string, 0, len(spec.Env)+1)
+	out := make([]string, 0, len(spec.Env)+2)
 	for _, kv := range spec.Env {
-		if len(kv) > len(brand.EnvProfile) && kv[:len(brand.EnvProfile)+1] == brand.EnvProfile+"=" {
+		if strings.HasPrefix(kv, brand.EnvProfile+"=") || strings.HasPrefix(kv, brand.EnvSession+"=") {
 			continue
 		}
 		out = append(out, kv)
 	}
-	return append(out, brand.EnvProfile+"="+spec.Profile)
+	// VPNCELL_SESSION (issue #12) is for prompts and scripts; the daemon
+	// itself finds a caller's session from its cgroup, not from this.
+	return append(out, brand.EnvProfile+"="+spec.Profile, brand.EnvSession+"="+spec.ID)
 }
 
 func dropToUser(uid, gid uint32, groups []uint32) error {

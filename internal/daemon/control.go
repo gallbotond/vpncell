@@ -119,6 +119,8 @@ func (d *Daemon) handle(c *caller, conn *control.Conn, req *control.Request, fil
 	switch req.Type {
 	case "list":
 		return d.handleList(c), nil
+	case "current":
+		return d.handleCurrent(c), nil
 	case "status":
 		return d.handleStatus(c, req.Profile)
 	case "up":
@@ -215,7 +217,15 @@ func (d *Daemon) handleList(c *caller) *control.Response {
 
 func (d *Daemon) redactSessions(c *caller, in []control.SessionInfo) []control.SessionInfo {
 	out := make([]control.SessionInfo, 0, len(in))
+	// Mark the caller's own session and its outer sessions (issue #12).
+	own := d.callerSession(c.PID)
+	outer := map[string]bool{}
+	for _, r := range d.chain(own) {
+		outer[r.ID] = r.ID != own
+	}
 	for _, s := range in {
+		s.Current = own != "" && s.ID == own
+		s.Outer = outer[s.ID]
 		if !c.admin && s.UID != c.UID {
 			s.Command = []string{"(session of another user)"}
 			s.PID = 0

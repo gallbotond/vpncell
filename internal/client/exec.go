@@ -21,6 +21,9 @@ type ExecOptions struct {
 	Argv    []string
 	TTY     bool
 	IsShell bool
+	// OnStart, if set, is called once the session has started, with its
+	// id and nesting chain (outermost first; issue #12).
+	OnStart func(id string, chain []control.SessionRef)
 }
 
 // forwarded are the signals the client relays to the session (in TTY mode
@@ -61,6 +64,9 @@ func Exec(opt ExecOptions) (int, error) {
 	if r.Type != "started" {
 		control.CloseFiles(got)
 		return 1, errors.New("unexpected reply from daemon: " + r.Type)
+	}
+	if opt.OnStart != nil {
+		opt.OnStart(r.SessionID, r.Chain)
 	}
 	var master *os.File
 	if opt.TTY {

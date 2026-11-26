@@ -34,6 +34,7 @@ Profiles:
   up <profile>                      bring a profile up
   down [--force|--kill] <profile>   take a profile down
   socks <profile>                   print the profile's SOCKS5 proxy URL
+  current [--json]                  which session and profile this terminal is in
 
 Administration (root):
   import [options] <name> <wg.conf|file.ovpn>
@@ -72,6 +73,8 @@ func main() {
 		code, err = cmdRun(args)
 	case "socks":
 		err = cmdSocks(args)
+	case "current":
+		code, err = cmdCurrent(args)
 	case "import":
 		err = cmdImport(args)
 	case "reload":
@@ -119,8 +122,15 @@ func printSessions(w *os.File, ss []control.SessionInfo, indent string) {
 		if u, err := user.LookupId(name); err == nil {
 			name = u.Username
 		}
-		fmt.Fprintf(w, "%s%s  user=%s pid=%d started=%s  %s\n", indent, s.ID, name, s.PID,
-			time.Unix(s.Started, 0).Format("15:04:05"), strings.Join(s.Command, " "))
+		mark := ""
+		switch {
+		case s.Current:
+			mark = "  <- this session"
+		case s.Outer:
+			mark = "  <- outer session of this one"
+		}
+		fmt.Fprintf(w, "%s%s  user=%s pid=%d started=%s  %s%s\n", indent, s.ID, name, s.PID,
+			time.Unix(s.Started, 0).Format("15:04:05"), strings.Join(s.Command, " "), mark)
 	}
 }
 
@@ -347,7 +357,68 @@ func cmdShell(args []string) (int, error) {
 	sh := userShell()
 	tty := term.IsTerminal(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr, escapeWarning)
-	return client.Exec(client.ExecOptions{Profile: args[0], Argv: []string{sh, "-i"}, TTY: tty, IsShell: true})
+	quiet := os.Getenv("VPNCELL_QUIET") == "1"
+	title := tty && !quiet && term.IsTerminal(int(os.Stdout.Fd()))
+	var chain []control.SessionRef
+	code, err := client.Exec(client.ExecOptions{Profile: args[0], Argv: []string{sh, "-i"}, TTY: tty, IsShell: true,
+		OnStart: func(id string, c []control.SessionRef) {
+			chain = c
+			if !quiet {
+				fmt.Fprintln(os.Stderr, enterBanner(args[0], id, c))
+			}
+			if title {
+				// Save the current title (xterm title stack), then set ours.
+				fmt.Fprint(os.Stdout, "\x1b[22;0t\x1b]0;"+termTitle(args[0])+"\x07")
+			}
+		}})
+	if chain != nil {
+		if title {
+			fmt.Fprint(os.Stdout, "\x1b[23;0t") // restore the saved title
+		}
+		if !quiet {
+			fmt.Fprintln(os.Stderr, leaveBanner(args[0], chain))
+		}
+	}
+	return code, err
+}
+
+// enterBanner, e.g. "vpncell: entering profile demo-openvpn → lab (session
+// 1b2c3d4e5f60; type exit to leave)" (issue #12).
+func enterBanner(profile, id string, chain []control.SessionRef) string {
+	path := profile
+	if len(chain) > 1 {
+		var ps []string
+		for _, c := range chain {
+			ps = append(ps, c.Profile)
+		}
+		path = strings.Join(ps, " → ")
+	}
+	return fmt.Sprintf("vpncell: entering profile %s (session %s; type exit to leave)", path, id)
+}
+
+func leaveBanner(profile string, chain []control.SessionRef) string {
+	back := "back on the host network"
+	if len(chain) > 1 {
+		back = "back in profile " + chain[len(chain)-2].Profile
+	}
+	return fmt.Sprintf("vpncell: left profile %s (%s)", profile, back)
+}
+
+// termTitle is the terminal title while a profile shell runs.
+func termTitle(profile string) string {
+	who := os.Getenv("USER")
+	if u, err := user.Current(); err == nil {
+		who = u.Username
+	}
+	host, _ := os.Hostname()
+	t := fmt.Sprintf("[vpncell: %s] %s@%s", profile, who, host)
+	// No control characters in an OSC string.
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, t)
 }
 
 func cmdRun(args []string) (int, error) {
@@ -501,4 +572,58 @@ func printReach(s control.ProfileStatus) {
 		}
 		fmt.Printf("  DNS:            %s\n", line)
 	}
+}
+
+// cmdCurrent answers "where am I?" (issue #12). The daemon decides from
+// the caller's cgroup and network namespace, not from the environment.
+// Exit status 1 outside a session, like tty(1).
+func cmdCurrent(args []string) (int, error) {
+	fs := flag.NewFlagSet("current", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "print JSON")
+	if err := fs.Parse(args); err != nil {
+		return 2, err
+	}
+	r, err := client.Call(control.Request{Type: "current"})
+	if err != nil {
+		return 1, err
+	}
+	cur := r.Current
+	if cur == nil {
+		return 1, errors.New("no answer from the daemon")
+	}
+	code := 0
+	if cur.Session == nil {
+		code = 1
+	}
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return code, enc.Encode(cur)
+	}
+	if s := cur.Session; s != nil {
+		fmt.Printf("session:  %s in profile %s (started %s)\n", s.ID, s.Profile, time.Unix(s.Started, 0).Format("2006-01-02 15:04:05"))
+		if len(cur.Chain) > 1 {
+			var parts []string
+			for _, c := range cur.Chain {
+				parts = append(parts, fmt.Sprintf("%s (%s)", c.ID, c.Profile))
+			}
+			fmt.Printf("nesting:  %s\n", strings.Join(parts, " → "))
+		}
+	} else {
+		fmt.Println("session:  none (not in a vpncell session)")
+	}
+	switch cur.Network {
+	case "host", "unknown":
+		fmt.Printf("network:  %s\n", cur.Network)
+	default:
+		st := cur.State
+		if st == "" {
+			st = "state not visible to you"
+		}
+		fmt.Printf("network:  profile %s (%s)\n", cur.Network, st)
+	}
+	if env := os.Getenv("VPNCELL_PROFILE"); env != "" && env != cur.Network {
+		fmt.Printf("note:     VPNCELL_PROFILE=%s does not match this process's network\n", env)
+	}
+	return code, nil
 }

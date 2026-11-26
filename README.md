@@ -148,6 +148,7 @@ allow that.
 | Command | What it does |
 |---|---|
 | `vpncell list` | profiles you may use and their state |
+| `vpncell current [--json]` | the session, nesting chain and network this terminal is in |
 | `vpncell status [--json] [profile]` | state, exit IP, last handshake, traffic, SOCKS port, sessions |
 | `vpncell up <profile>` / `down [--force\|--kill] <profile>` | bring a profile up or down (for OpenVPN, `up` exits with 3 if the tunnel is not connected after its 20 s wait; see "When an OpenVPN profile does not connect") |
 | `vpncell shell <profile>` | your shell inside the profile |
@@ -160,9 +161,25 @@ allow that.
 - `vpncell shell <profile>` starts your `$SHELL` (taken from the
   environment of the `vpncell` command) as an **interactive, non-login**
   shell (`$SHELL -i`). If `$SHELL` is unset, the shell from your passwd
-  entry is used. The shell gets `VPNCELL_PROFILE=<profile>`, so a prompt can
-  show it, for example in `~/.bashrc`:
-  `PS1='${VPNCELL_PROFILE:+[$VPNCELL_PROFILE] }'"$PS1"`.
+  entry is used. The shell gets `VPNCELL_PROFILE=<profile>` and
+  `VPNCELL_SESSION=<session id>`, so a prompt can show them, for example in
+  `~/.bashrc`: `PS1='${VPNCELL_PROFILE:+[$VPNCELL_PROFILE] }'"$PS1"`.
+- `vpncell shell` prints `vpncell: entering profile B (session <id>; type
+  exit to leave)` and, when the shell ends, `vpncell: left profile B (back
+  on the host network)`; nested, the banner shows the path (`A → B`) and
+  "back in profile A". On a terminal it also sets the window/tab title to
+  `[vpncell: B] user@host` and restores the previous title on exit (xterm
+  title stack; shells whose prompt sets the title, such as Ubuntu's default
+  `~/.bashrc`, overwrite it at the first prompt). `VPNCELL_QUIET=1` turns
+  the banner and the title off.
+- `vpncell current` says where you are: the session, its nesting chain
+  (`aff5cf31eeef (A) → 1b2c3d4e5f60 (B)`), and the network of the calling
+  process (a profile and its state, or `host`). The daemon finds these from
+  the caller's systemd scope and network namespace, not from the
+  environment variables, which can be copied or changed; if
+  `VPNCELL_PROFILE` disagrees, `current` says so. It exits with 1 outside a
+  session; `--json` gives the same as JSON. `vpncell status` marks your own
+  session with `<- this session` and its outer sessions.
 - `vpncell run <profile> -- <cmd>` runs one command. It uses a terminal when
   stdin and stdout are terminals (`-t` / `-T` force it on or off);
   otherwise your stdin, stdout and stderr are passed to the command directly.
