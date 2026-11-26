@@ -66,3 +66,22 @@ test("loopback hosts", () => {
     assert.ok(!isLoopbackHost(h), h);
   }
 });
+
+test("tunnel problems from status (issue #14)", async () => {
+  const { problemFromStatus, describeProblem } = await import("../build/decide.js");
+  const s = {
+    state: "connecting", reason: "no-reply", reason_text: "no reply from the server",
+    hint: "check tls-crypt", retries: 3, reason_at: 1700000000, log: "journalctl -u vpncell-openvpn@work",
+  };
+  const p = problemFromStatus(s);
+  assert.equal(p.reason, "no-reply");
+  const d = describeProblem(p);
+  assert.equal(d.summary, "no reply from the server (3 failed attempts)");
+  assert.match(d.detail, /tls-crypt/);
+  assert.match(d.detail, /journalctl -u vpncell-openvpn@work/);
+  assert.equal(describeProblem(problemFromStatus({ ...s, retries: 1 })).summary, "no reply from the server (1 failed attempt)");
+  // No reason, or the tunnel is up: nothing to show.
+  assert.equal(problemFromStatus({ state: "connecting" }), undefined);
+  assert.equal(problemFromStatus({ ...s, state: "up" }), undefined);
+  assert.equal(describeProblem(undefined), null);
+});

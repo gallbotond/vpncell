@@ -88,6 +88,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "vpncell: unknown command %q\n\n%s", cmd, usage)
 		os.Exit(2)
 	}
+	if errors.Is(err, errNotConnected) {
+		err, code = nil, exitNotConnected
+	}
 	if err != nil {
 		printErr(err)
 		if code == 0 {
@@ -175,7 +178,8 @@ func cmdStatus(args []string) error {
 			fmt.Println()
 		}
 		fmt.Printf("%s (%s, autostart %s)\n", s.Name, s.Backend, s.Autostart)
-		fmt.Printf("  state:          %s\n", s.State)
+		fmt.Printf("  state:          %s\n", stateLine(s))
+		printReason(os.Stdout, s, "  ")
 		if s.Interface != "" {
 			fmt.Printf("  interface:      %s %s\n", s.Interface, strings.Join(s.Addresses, " "))
 		}
@@ -185,7 +189,12 @@ func cmdStatus(args []string) error {
 		if s.Backend == "wireguard" {
 			fmt.Printf("  last handshake: %s\n", ago(s.LastHandshake))
 		}
-		fmt.Printf("  connected:      %s\n", ago(s.ConnectedAt))
+		switch {
+		case s.State == "up":
+			fmt.Printf("  connected:      %s\n", ago(s.ConnectedAt))
+		case s.TryingSince != 0:
+			fmt.Printf("  trying since:   %s\n", ago(s.TryingSince))
+		}
 		fmt.Printf("  traffic:        in %s, out %s\n", bytesStr(s.RxBytes), bytesStr(s.TxBytes))
 		if len(s.DNS) > 0 {
 			fmt.Printf("  DNS:            %s\n", strings.Join(s.DNS, " "))
@@ -216,8 +225,94 @@ func cmdUpDown(op string, args []string) error {
 	if err != nil {
 		return err
 	}
+	if op == "up" && len(r.Status) == 1 && r.Status[0].Backend == "openvpn" && r.Status[0].State != "up" {
+		// The daemon waited 20 s for OpenVPN to connect, without success.
+		// (WireGuard has no connection step: it is "connecting" until the
+		// first handshake, which needs traffic.)
+		s := r.Status[0]
+		fmt.Printf("profile %s is not connected yet; vpncell keeps trying in the background\n", s.Name)
+		fmt.Printf("  state:          %s\n", stateLine(s))
+		if s.Reason == "" && strings.HasPrefix(s.State, "connecting") {
+			fmt.Println("  no attempt has failed yet (OpenVPN gives up on a TLS handshake after 60 s)")
+		}
+		printReason(os.Stdout, s, "  ")
+		if s.Log != "" && s.Reason == "" {
+			fmt.Printf("  log:            %s\n", s.Log)
+		}
+		fmt.Printf("  check again:    vpncell status %s\n", s.Name)
+		return errNotConnected
+	}
 	fmt.Println(r.Message)
 	return nil
+}
+
+// errNotConnected makes `vpncell up` exit with exitNotConnected; the
+// details are already printed.
+var errNotConnected = errors.New("")
+
+const exitNotConnected = 3
+
+// stateLine is the state with a summary of why it is not up, e.g.
+// "connecting (no reply from the server; 3 failed attempts, last 11:08:30)".
+func stateLine(s control.ProfileStatus) string {
+	if s.Reason == "" || s.State == "up" {
+		return s.State
+	}
+	var parts []string
+	if s.Retries > 0 {
+		n := fmt.Sprintf("%d failed attempts", s.Retries)
+		if s.Retries == 1 {
+			n = "1 failed attempt"
+		}
+		parts = append(parts, n)
+	}
+	if s.ReasonAt != 0 {
+		parts = append(parts, "last "+time.Unix(s.ReasonAt, 0).Format("15:04:05"))
+	}
+	extra := ""
+	if len(parts) > 0 {
+		extra = "; " + strings.Join(parts, ", ")
+	}
+	return fmt.Sprintf("%s (%s%s)", s.State, s.ReasonText, extra)
+}
+
+// printReason prints the hint and the log command for a profile that is
+// not up.
+func printReason(w *os.File, s control.ProfileStatus, indent string) {
+	if s.State == "up" || s.Reason == "" {
+		return
+	}
+	if s.Hint != "" {
+		for i, l := range wrap(s.Hint, 60) {
+			label := "hint:"
+			if i > 0 {
+				label = ""
+			}
+			fmt.Fprintf(w, "%s%-16s%s\n", indent, label, l)
+		}
+	}
+	if s.Log != "" {
+		fmt.Fprintf(w, "%s%-16s%s\n", indent, "log:", s.Log)
+	}
+}
+
+func wrap(text string, width int) []string {
+	var lines []string
+	line := ""
+	for _, w := range strings.Fields(text) {
+		if line != "" && len(line)+1+len(w) > width {
+			lines = append(lines, line)
+			line = ""
+		}
+		if line != "" {
+			line += " "
+		}
+		line += w
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 const escapeWarning = "vpncell: note: commands that hand work to a program already running outside this profile (firefox <url>, code, xdg-open) escape the profile."

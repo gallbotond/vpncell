@@ -149,7 +149,7 @@ allow that.
 |---|---|
 | `vpncell list` | profiles you may use and their state |
 | `vpncell status [--json] [profile]` | state, exit IP, last handshake, traffic, SOCKS port, sessions |
-| `vpncell up <profile>` / `down [--force\|--kill] <profile>` | bring a profile up or down |
+| `vpncell up <profile>` / `down [--force\|--kill] <profile>` | bring a profile up or down (for OpenVPN, `up` exits with 3 if the tunnel is not connected after its 20 s wait; see "When an OpenVPN profile does not connect") |
 | `vpncell shell <profile>` | your shell inside the profile |
 | `vpncell run [-t\|-T] <profile> -- <cmd>...` | one command inside the profile |
 | `sudo vpncell import [--user u] [--group g] <name> <file>` | import a `wg-quick` or `.ovpn` config |
@@ -348,6 +348,42 @@ configures it there), `persist-tun`, `disable-dco` and
 DNS servers and search domains pushed by the server are used
 (`[dns] use_pushed = true`). IPv6 works when the server pushes an IPv6
 address; otherwise IPv6 fails closed.
+
+### When an OpenVPN profile does not connect
+
+OpenVPN keeps retrying, so the profile stays `connecting`. vpncell reads
+openvpn's own state history and tells you why each attempt failed:
+
+```
+$ vpncell status work
+work (openvpn, autostart on-use)
+  state:          connecting (no reply from the server; 3 failed attempts, last 11:08:30)
+  hint:           the server never answered the TLS handshake. Usually the
+                  config's tls-auth/tls-crypt key or mode (or key-direction)
+                  ...
+  log:            journalctl -u vpncell-openvpn@work.service
+  trying since:   3m12s ago
+```
+
+`connected:` is shown only while the profile is up; otherwise `trying
+since:` says since when it has been without a connection.
+`vpncell status --json` has the same as `reason`, `reason_text`, `hint`,
+`retries`, `reason_at`, `trying_since` and `log`; the Firefox popup shows
+the reason under the container's state.
+
+| `reason` | Meaning | What to check |
+|---|---|---|
+| `no-reply` | The server never answered (openvpn stayed in `WAIT`). | `tls-auth` vs `tls-crypt`, the key and `key-direction` must match the server; is the server reachable? |
+| `stalled-after-server-cert` | The server sent its certificate, then went silent. With TLS 1.3 this is how a **refused client certificate** looks (revoked, replaced or removed on the server). | Get a current client config; compare it with one that works. |
+| `tls-error` | The server answered, the TLS handshake failed otherwise. | Certificates, `tls-auth`/`tls-crypt`, TLS settings. |
+| `auth-failure` | The server refused the login. | Username/password (`--auth-file`), certificate. |
+| `ping-restart` | A connected tunnel stopped getting keepalive replies. | Server or network. |
+
+OpenVPN gives up on a TLS handshake after 60 s (`hand-window`), so the
+first reason can take that long to appear. `vpncell up` waits up to 20 s
+for the connection; if the tunnel is not connected by then, it prints the
+reason known so far and the `journalctl` command, and exits with status 3.
+The profile keeps trying in the background.
 
 ## Import safety
 

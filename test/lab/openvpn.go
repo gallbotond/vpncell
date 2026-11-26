@@ -21,6 +21,10 @@ type pki struct {
 	caCert, caKey   []byte
 	srvCert, srvKey []byte
 	cliCert, cliKey []byte
+	// A second client certificate that the server's CRL revokes (issue
+	// #14: a refused client certificate looks like a silent TLS stall).
+	revCert, revKey []byte
+	crl             []byte
 }
 
 func pemBlock(typ string, der []byte) []byte {
@@ -63,6 +67,17 @@ func newPKI(name string) (*pki, error) {
 	if p.cliCert, p.cliKey, err = leaf("vclab-client-"+name, 3, x509.ExtKeyUsageClientAuth); err != nil {
 		return nil, err
 	}
+	if p.revCert, p.revKey, err = leaf("vclab-revoked-"+name, 4, x509.ExtKeyUsageClientAuth); err != nil {
+		return nil, err
+	}
+	crl, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+		Number: big.NewInt(1), ThisUpdate: now, NextUpdate: now.Add(10 * 365 * 24 * time.Hour),
+		RevokedCertificateEntries: []x509.RevocationListEntry{{SerialNumber: big.NewInt(4), RevocationTime: now}},
+	}, ca, caKey)
+	if err != nil {
+		return nil, err
+	}
+	p.crl = pemBlock("X509 CRL", crl)
 	return p, nil
 }
 
@@ -90,7 +105,7 @@ func (l *Lab) AddOpenVPN(name string, index int) (*Server, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	for f, b := range map[string][]byte{"ca.pem": p.caCert, "server.pem": p.srvCert, "server.key": p.srvKey} {
+	for f, b := range map[string][]byte{"ca.pem": p.caCert, "server.pem": p.srvCert, "server.key": p.srvKey, "crl.pem": p.crl} {
 		if err := os.WriteFile(filepath.Join(dir, f), b, 0o600); err != nil {
 			return nil, err
 		}
@@ -120,6 +135,7 @@ server-ipv6 fd00:201:%[4]d::/64
 ca %[5]s/ca.pem
 cert %[5]s/server.pem
 key %[5]s/server.key
+crl-verify %[5]s/crl.pem
 dh none
 data-ciphers AES-256-GCM:AES-128-GCM
 keepalive 5 30
@@ -160,7 +176,8 @@ verb 3
 		log, _ := os.ReadFile(filepath.Join(dir, "server.log"))
 		return nil, fmt.Errorf("openvpn lab server %s did not come up:\n%s", name, log)
 	}
-	client := fmt.Sprintf(`client
+	clientConf := func(cert, key []byte) string {
+		return fmt.Sprintf(`client
 dev tun
 proto udp4
 remote 127.0.0.1 %d
@@ -174,10 +191,15 @@ verb 3
 %s</cert>
 <key>
 %s</key>
-`, s.Port, p.caCert, p.cliCert, p.cliKey)
+`, s.Port, p.caCert, cert, key)
+	}
 	os.MkdirAll(filepath.Join(l.Dir, "clients"), 0o700)
 	s.ClientConfig = filepath.Join(l.Dir, "clients", name+".ovpn")
-	if err := os.WriteFile(s.ClientConfig, []byte(client), 0o600); err != nil {
+	if err := os.WriteFile(s.ClientConfig, []byte(clientConf(p.cliCert, p.cliKey)), 0o600); err != nil {
+		return nil, err
+	}
+	s.RevokedClientConfig = filepath.Join(l.Dir, "clients", name+"-revoked.ovpn")
+	if err := os.WriteFile(s.RevokedClientConfig, []byte(clientConf(p.revCert, p.revKey)), 0o600); err != nil {
 		return nil, err
 	}
 	return s, nil

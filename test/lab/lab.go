@@ -47,6 +47,9 @@ type Server struct {
 	TunAddr6 netip.Prefix
 	// ClientConfig is the path of the generated client config.
 	ClientConfig string
+	// RevokedClientConfig (OpenVPN only) uses a client certificate that
+	// the server's CRL revokes.
+	RevokedClientConfig string
 
 	lab       *Lab
 	listeners []net.Listener

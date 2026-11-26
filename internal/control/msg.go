@@ -107,20 +107,30 @@ type ProfileInfo struct {
 }
 
 type ProfileStatus struct {
-	Name          string        `json:"name"`
-	Backend       string        `json:"backend"`
-	State         string        `json:"state"` // down, connecting, up, failed: <reason>
-	Autostart     string        `json:"autostart"`
-	ExitIP        string        `json:"exit_ip,omitempty"`
-	LastHandshake int64         `json:"last_handshake,omitempty"` // unix seconds
-	ConnectedAt   int64         `json:"connected_at,omitempty"`
-	RxBytes       uint64        `json:"rx_bytes"`
-	TxBytes       uint64        `json:"tx_bytes"`
-	SocksPort     int           `json:"socks_port"`
-	Interface     string        `json:"interface,omitempty"`
-	Addresses     []string      `json:"addresses,omitempty"`
-	DNS           []string      `json:"dns,omitempty"`
-	Sessions      []SessionInfo `json:"sessions"`
+	Name          string `json:"name"`
+	Backend       string `json:"backend"`
+	State         string `json:"state"` // down, connecting, up, failed: <reason>
+	Autostart     string `json:"autostart"`
+	ExitIP        string `json:"exit_ip,omitempty"`
+	LastHandshake int64  `json:"last_handshake,omitempty"` // unix seconds
+	ConnectedAt   int64  `json:"connected_at,omitempty"`   // only in state "up"
+	// TryingSince: not up, since when (unix seconds): when the connection
+	// was lost, or when the profile was brought up if it never connected.
+	TryingSince int64 `json:"trying_since,omitempty"`
+	// Why the tunnel is not connected (OpenVPN; issue #14).
+	Reason     string        `json:"reason,omitempty"`      // code: no-reply, stalled-after-server-cert, tls-error, auth-failure, ping-restart, …
+	ReasonText string        `json:"reason_text,omitempty"` // one line for people
+	Hint       string        `json:"hint,omitempty"`        // what to check
+	ReasonAt   int64         `json:"reason_at,omitempty"`   // unix seconds of the last failed attempt
+	Retries    int           `json:"retries,omitempty"`     // failed attempts since the last connection
+	Log        string        `json:"log,omitempty"`         // command that shows the tunnel's log
+	RxBytes    uint64        `json:"rx_bytes"`
+	TxBytes    uint64        `json:"tx_bytes"`
+	SocksPort  int           `json:"socks_port"`
+	Interface  string        `json:"interface,omitempty"`
+	Addresses  []string      `json:"addresses,omitempty"`
+	DNS        []string      `json:"dns,omitempty"`
+	Sessions   []SessionInfo `json:"sessions"`
 }
 
 type SessionInfo struct {

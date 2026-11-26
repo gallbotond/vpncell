@@ -100,6 +100,7 @@ func (b *Backend) Up(ctx context.Context, p *profile.Profile, ifname string) err
 	}
 	os.Remove(PushedPath(p.Name))
 	forget(p.Name)
+	retries.reset(p.Name)
 	c, err := systemd(ctx)
 	if err != nil {
 		return fmt.Errorf("systemd: %w", err)
@@ -225,6 +226,12 @@ type cached struct {
 	since time.Time
 	rx    uint64
 	tx    uint64
+
+	hist    history
+	retries int
+	code    string
+	text    string
+	hint    string
 }
 
 var (
@@ -232,8 +239,10 @@ var (
 	cache   = map[string]cached{}
 )
 
-// mgmtStatus asks openvpn for its state and byte counts, at most every 10 s
-// (each management connection is logged by openvpn).
+// mgmtStatus asks openvpn for its state history and byte counts, at most
+// every 10 s (each management connection is logged by openvpn). While the
+// tunnel is not connected after a TLS error it also reads the recent log,
+// to tell the kinds of TLS failure apart (diagnose.go).
 func mgmtStatus(p string) (cached, error) {
 	cacheMu.Lock()
 	c, ok := cache[p]
@@ -241,19 +250,15 @@ func mgmtStatus(p string) (cached, error) {
 	if ok && time.Since(c.at) < 10*time.Second {
 		return c, nil
 	}
-	res, err := mgmt(p, "state", "load-stats")
+	res, err := mgmt(p, "state all", "load-stats")
 	if err != nil {
 		return cached{}, err
 	}
 	c = cached{at: time.Now(), state: "CONNECTING"}
 	if len(res) > 0 {
-		for _, l := range res[0] {
-			f := strings.Split(l, ",")
-			if len(f) >= 2 {
-				if t, err := strconv.ParseInt(f[0], 10, 64); err == nil {
-					c.state, c.since = f[1], time.Unix(t, 0)
-				}
-			}
+		c.hist = analyze(parseHistory(res[0]))
+		if c.hist.state != "" {
+			c.state, c.since = c.hist.state, time.Unix(c.hist.since, 0)
 		}
 	}
 	if len(res) > 1 {
@@ -272,6 +277,14 @@ func mgmtStatus(p string) (cached, error) {
 			}
 		}
 	}
+	c.retries = retries.update(p, c.hist)
+	var logs []logEntry
+	if c.state != "CONNECTED" && c.hist.lastReason == "tls-error" && c.hist.failedReply {
+		if lr, err := mgmt(p, "log 500"); err == nil && len(lr) > 0 {
+			logs = parseLog(lr[0])
+		}
+	}
+	c.code, c.text, c.hint = explain(c.hist, logs)
 	cacheMu.Lock()
 	cache[p] = c
 	cacheMu.Unlock()
@@ -287,6 +300,7 @@ func forget(p string) {
 // Status implements backend.Backend.
 func (b *Backend) Status(ctx context.Context, p *profile.Profile, ifname string) (backend.Status, error) {
 	var st backend.Status
+	st.LogHint = "journalctl -u " + UnitName(p.Name)
 	active, _ := unitActive(ctx, p.Name)
 	if active == "failed" {
 		st.State = "failed: openvpn exited (see journalctl -u " + UnitName(p.Name) + ")"
@@ -322,6 +336,12 @@ func (b *Backend) Status(ctx context.Context, p *profile.Profile, ifname string)
 		st.State = backend.StateConnecting
 		return st, nil
 	}
+	if ms.code != "" {
+		st.Reason, st.ReasonText, st.Hint = ms.code, ms.text, ms.hint
+		st.ReasonAt = unixTime(ms.hist.lastAt)
+	}
+	st.Retries = ms.retries
+	st.LostAt = unixTime(ms.hist.lostAt)
 	switch ms.state {
 	case "CONNECTED":
 		if !linkPresent {
