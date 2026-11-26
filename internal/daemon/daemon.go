@@ -35,9 +35,15 @@ type Daemon struct {
 	events   *broker
 	hostNS   netns.ID
 
+	// loadMu serializes loading profiles and removing them (reload, import,
+	// remove, SIGHUP).
+	loadMu   sync.Mutex
 	mu       sync.Mutex
 	profiles map[string]*profile.Profile
 	rt       map[string]*rtProfile
+	// removed: namespaces of removed profiles that sessions still use
+	// (issue #17). supervise deletes each once its sessions end.
+	removed map[string]bool
 
 	// fds inherited from systemd's store, by name
 	stored map[string]*os.File
@@ -73,6 +79,9 @@ type rtProfile struct {
 	pushedKey string
 	// routesKey remembers the last logged tunnel routes (issue #15).
 	routesKey string
+	// removed is set (under op) when the profile is removed, so a request
+	// that looked it up before cannot bring it up again (issue #17).
+	removed bool
 }
 
 func (r *rtProfile) getState() string {
@@ -101,6 +110,7 @@ func Run(ctx context.Context, opt Options) error {
 		log:      opt.Log,
 		ctx:      ctx,
 		rt:       map[string]*rtProfile{},
+		removed:  map[string]bool{},
 		events:   newBroker(),
 		stored:   map[string]*os.File{},
 		sessions: newSessionTable(),
@@ -232,9 +242,45 @@ func (d *Daemon) fixSocketPerms() {
 }
 
 func (d *Daemon) loadProfiles() {
+	d.loadMu.Lock()
+	defer d.loadMu.Unlock()
+	d.loadProfilesLocked()
+}
+
+// loadProfilesLocked re-reads the profile files. A profile whose file is
+// gone while it is in use is taken down (its sessions keep running without
+// network); one whose file is still there but no longer loads keeps its
+// running version, so a typo in an edit does not cut a live tunnel
+// (issue #17). Callers hold loadMu.
+func (d *Daemon) loadProfilesLocked() {
 	ps, errs := profile.LoadAll()
 	for _, e := range errs {
 		d.log.Error("profile not loaded", "err", e)
+	}
+	d.mu.Lock()
+	old := d.profiles
+	d.mu.Unlock()
+	for _, name := range profile.Names(old) {
+		if _, ok := ps[name]; ok {
+			continue
+		}
+		p, rt := d.getProfile(name)
+		if rt == nil || !d.inUse(name) {
+			continue
+		}
+		if _, err := os.Stat(profilePath(name)); err == nil {
+			d.log.Error("profile file no longer loads; keeping the running version until it is fixed or the profile is removed", "profile", name)
+			ps[name] = p
+			continue
+		}
+		n := d.sessions.countLive(name)
+		d.log.Warn("profile file removed while the profile is in use; taking it down", "profile", name, "sessions", n)
+		rt.op.Lock()
+		if err := d.downLocked(p, rt, true, false); err != nil {
+			d.log.Error("take down removed profile", "profile", name, "err", err)
+		}
+		rt.removed = true
+		rt.op.Unlock()
 	}
 	d.mu.Lock()
 	d.profiles = ps
@@ -243,10 +289,85 @@ func (d *Daemon) loadProfiles() {
 			d.rt[name] = &rtProfile{name: name}
 		}
 	}
+	var gone []string
+	for name := range d.rt {
+		if _, ok := ps[name]; !ok {
+			gone = append(gone, name)
+			delete(d.rt, name)
+		}
+	}
 	d.mu.Unlock()
+	for _, name := range gone {
+		d.forgetProfile(name)
+	}
+	d.state.prune(func(name string) bool {
+		if ps[name] != nil {
+			return true
+		}
+		// A file that does not load keeps its index and port.
+		_, err := os.Lstat(profilePath(name))
+		return err == nil
+	})
 	for _, e := range d.exts {
 		e.reload(ps)
 	}
+}
+
+// inUse reports whether a profile is up, has a namespace or has sessions.
+func (d *Daemon) inUse(name string) bool {
+	return isDesired(name) || netns.Exists(name) || d.sessions.countLive(name) > 0
+}
+
+// forgetProfile frees the runtime directory of a profile that no longer
+// exists or, while its sessions still use the namespace, marks the
+// namespace for supervise. (Its index and port go in state.prune.)
+func (d *Daemon) forgetProfile(name string) {
+	if netns.Exists(name) {
+		d.mu.Lock()
+		d.removed[name] = true
+		d.mu.Unlock()
+		return
+	}
+	os.RemoveAll(brand.ProfileRunDir(name))
+}
+
+// collectRemoved deletes the namespaces of removed profiles once their last
+// session ended.
+func (d *Daemon) collectRemoved() {
+	d.mu.Lock()
+	var names []string
+	for n := range d.removed {
+		if _, ok := d.profiles[n]; ok {
+			// Imported again under the same name: the namespace is its.
+			delete(d.removed, n)
+			continue
+		}
+		names = append(names, n)
+	}
+	d.mu.Unlock()
+	for _, n := range names {
+		if netns.Exists(n) && d.sessions.countLive(n) > 0 {
+			continue
+		}
+		d.mu.Lock()
+		_, back := d.profiles[n]
+		delete(d.removed, n)
+		d.mu.Unlock()
+		if back {
+			continue
+		}
+		if netns.Exists(n) {
+			d.log.Info("last session of a removed profile ended; deleting its namespace", "profile", n)
+			if err := netns.Delete(n); err != nil {
+				d.log.Warn("delete namespace", "profile", n, "err", err)
+			}
+		}
+		os.RemoveAll(brand.ProfileRunDir(n))
+	}
+}
+
+func profilePath(name string) string {
+	return filepath.Join(brand.ProfilesDir(), name+".toml")
 }
 
 func (d *Daemon) getProfile(name string) (*profile.Profile, *rtProfile) {
@@ -286,20 +407,29 @@ func (d *Daemon) adoptOrStart(boot bool) {
 	ps := d.profiles
 	d.mu.Unlock()
 	if !boot {
+		// Sessions first: an unknown profile's namespace stays while its
+		// sessions run.
+		d.sessions.adopt(d)
 		names, _ := netns.List()
 		for _, n := range names {
 			p, rt := d.getProfile(n)
 			if p == nil {
+				d.log.Warn("namespace of a profile that no longer exists; stopping its tunnel", "profile", n)
+				d.stopUnknownTunnel(n)
+				setDesired(n, false)
 				if d.sessions.countLive(n) == 0 {
 					d.log.Info("removing namespace of unknown profile", "profile", n)
 					netns.Delete(n)
 					os.RemoveAll(brand.ProfileRunDir(n))
+				} else {
+					d.mu.Lock()
+					d.removed[n] = true
+					d.mu.Unlock()
 				}
 				continue
 			}
 			d.adopt(p, rt)
 		}
-		d.sessions.adopt(d)
 	}
 	for _, name := range profile.Names(ps) {
 		p, rt := d.getProfile(name)

@@ -5,9 +5,10 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
-**Issue run done (2026-11-26).** #8, #9, #10, #12, #13, #14 and #15 are
-merged and closed (PRs #20–#26). Open, not in this run's scope: #16, #17,
-#18, #19. See "Issue run" and "Open items for the user" below.
+**#17 (`vpncell remove`) in progress (2026-11-26)** on
+`feat/remove-profile`. Earlier in the day: #8, #9, #10, #12, #13, #14 and
+#15 merged and closed (PRs #20–#26). Still open: #16, #18, #19. See "Issue
+run" and "Open items for the user" below.
 
 ## Steps
 
@@ -55,6 +56,7 @@ AF_PACKET in the test binary.
 | follow-up: test key generated at runtime | `fix/test-key-runtime` | [#24](https://github.com/gallbotond/vpncell/pull/24) | merged |
 | #13 tls-crypt on the VM, `import --tls-auth` | `feat/tls-auth-import` | [#25](https://github.com/gallbotond/vpncell/pull/25) | merged |
 | #12 session identity (session 1–3, profile 1–2) | `feat/session-identity` | [#26](https://github.com/gallbotond/vpncell/pull/26) | merged |
+| #17 `vpncell remove`, no orphaned profiles | `feat/remove-profile` | – | in progress |
 
 ### #8 + #9 (PR #20, package 0.9.2)
 
@@ -130,6 +132,27 @@ AF_PACKET in the test binary.
   profile ideas 4–6.
 - Tests: `TestSessionIdentity`, `TestShellBannerAndTitle`. Full suite
   against 0.9.11: 119 passes, only `/snap` browser subtests fail.
+
+### #17 (package 0.9.13)
+
+- `sudo vpncell remove [--force|--kill] NAME`: refuses while up or with
+  sessions; deletes `profiles.d/NAME.toml` and `secrets/NAME/`; names
+  config files outside `secrets/NAME/` instead of deleting them.
+- `reload`: a profile whose file is gone while in use is taken down
+  (`--force` semantics); a file that is there but does not load keeps the
+  running version (journal error). Index and SOCKS port of vanished
+  profiles are pruned on every load (also after a daemon restart).
+- Daemon start: a namespace without a profile gets its OpenVPN unit
+  stopped and its links deleted; sessions are adopted before that sweep
+  (they were adopted after it, so their namespace was deleted).
+- Namespaces of removed profiles that sessions still use are deleted by
+  the supervisor after the last session ends.
+- DESIGN.md §12 item 35, protocol table; README "Removing a profile".
+- Tests: `TestRemoveProfile`, `TestRemoveOpenVPN`,
+  `TestReloadDeletedProfile`, `TestReloadBrokenProfile`,
+  `TestRestartDeletedProfile`; unit tests `TestWithin`, `TestStatePrune`.
+  The first run against 0.9.12 found that a restart kept the deleted
+  profile's index and port (fixed in 0.9.13).
 
 ### State of this host (end of the run)
 

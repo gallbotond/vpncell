@@ -98,6 +98,7 @@ func (sm *socksManager) reload(ps map[string]*profile.Profile) {
 	d := sm.d
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
+	changed := false
 	for name, e := range sm.m {
 		p := ps[name]
 		want := 0
@@ -110,11 +111,16 @@ func (sm *socksManager) reload(ps map[string]*profile.Profile) {
 			delete(sm.m, name)
 			if p == nil {
 				delete(sm.creds, name)
-				d.state.forget(name)
+				changed = true
 			}
 		}
 	}
-	changed := false
+	for name := range sm.creds {
+		if ps[name] == nil {
+			delete(sm.creds, name)
+			changed = true
+		}
+	}
 	for name, p := range ps {
 		if _, ok := sm.m[name]; ok {
 			continue

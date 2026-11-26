@@ -143,6 +143,27 @@ A profile reaches only what is behind its tunnel: never the host's
 `localhost`, the systemd-resolved stub or the LAN. There is no setting to
 allow that.
 
+### Removing a profile
+
+```bash
+sudo vpncell remove work
+```
+
+This deletes `/etc/vpncell/profiles.d/work.toml` and
+`/etc/vpncell/secrets/work/` (keys, certificates) and frees the profile's
+SOCKS port. While the profile is up or has sessions, `remove` refuses, like
+`down`: `--force` takes it down first (its sessions keep running without
+network; the namespace goes when the last one exits), `--kill` ends the
+sessions. Config files that a hand-written profile keeps outside
+`secrets/<name>/` are listed, not deleted. Firefox containers mapped to the
+profile show an error page (never a direct connection) until you map them
+to another profile.
+
+If you delete a profile file by hand instead, `sudo vpncell reload` takes
+the profile down the same way. A profile file that no longer loads (for
+example a typo while editing) does not stop a running profile: it keeps
+running with the old settings, and `journalctl -u vpncelld` shows the error.
+
 ## Commands
 
 | Command | What it does |
@@ -154,6 +175,7 @@ allow that.
 | `vpncell shell <profile>` | your shell inside the profile |
 | `vpncell run [-t\|-T] <profile> -- <cmd>...` | one command inside the profile |
 | `sudo vpncell import [--user u] [--group g] <name> <file>` | import a `wg-quick` or `.ovpn` config |
+| `sudo vpncell remove [--force\|--kill] <profile>` | take a profile down and delete its profile file and `/etc/vpncell/secrets/<name>/` (see "Removing a profile") |
 | `sudo vpncell reload` | re-read `/etc/vpncell/profiles.d` |
 
 ## Terminal sessions

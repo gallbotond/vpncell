@@ -166,6 +166,8 @@ func (d *Daemon) handle(c *caller, conn *control.Conn, req *control.Request, fil
 			return nil, control.Errorf(control.ErrDenied, "import is for root only (use sudo)")
 		}
 		return d.handleImport(req.Import)
+	case "remove":
+		return d.handleRemove(c, req.Profile, req.Force, req.Kill)
 	case "debug":
 		if !c.admin {
 			return nil, control.Errorf(control.ErrDenied, "debug is for root only")
