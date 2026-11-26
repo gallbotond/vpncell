@@ -51,6 +51,7 @@ AF_PACKET in the test binary.
 | #8 hang on stopped daemon, #9 group message | `fix/client-dial-timeout` | [#20](https://github.com/gallbotond/vpncell/pull/20) | merged |
 | #14 OpenVPN failure reason | `fix/openvpn-reconnect-reason` | [#21](https://github.com/gallbotond/vpncell/pull/21) | merged |
 | #10 ping in sessions | `fix/ping` | [#22](https://github.com/gallbotond/vpncell/pull/22) | merged |
+| #15 split-tunnel information | `fix/split-tunnel-info` | [#23](https://github.com/gallbotond/vpncell/pull/23) | merged |
 
 ### #8 + #9 (PR #20, package 0.9.2)
 
@@ -87,6 +88,21 @@ AF_PACKET in the test binary.
   Decision in DECISIONS.md. Nothing left in "Known limitations" for ping.
 - Tests: `TestPingLab`, `TestPingVM` (IPv4+IPv6), `TestPingAdoptedNamespace`.
   Full suite against 0.9.6: 112 passes, only `/snap` browser subtests fail.
+
+### #15 (PR #23, package 0.9.8)
+
+- Import warnings (WireGuard AllowedIPs/DNS, OpenVPN redirect-gateway),
+  `reaches:` / `server routes:` / DNS notes in status, JSON and the
+  Firefox popup, `tunnel routes` in the daemon log, README troubleshooting.
+  No fallback to the host connection.
+- OpenVPN route info needs a reconnect for tunnels connected before 0.9.8
+  (older hook); until then status shows none (by design, no wrong claims).
+- Tests: `TestReachSplitWireGuard`, `TestReachNoDNS`, `TestReachVMOpenVPN`
+  + unit tests. Full suite against 0.9.8: 115 passes, only `/snap` fail.
+- Note for the user: the `sonrisa` work profile gets pushed DNS 8.8.8.8 /
+  8.8.4.4 but only private routes, so name lookups in it probably fail;
+  after its next reconnect `vpncell status sonrisa` will flag this. Set
+  `[dns] servers` (your internal resolver) if needed.
 
 ## Open items for the user
 
