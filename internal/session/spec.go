@@ -4,6 +4,8 @@
 // dropped, then drops its own privileges and relays the exit status.
 package session
 
+import "github.com/gallbotond/vpncell/internal/control"
+
 // Spec is what the daemon hands to the helper over a pipe.
 type Spec struct {
 	ID        string   `json:"id"`
@@ -23,6 +25,8 @@ type Spec struct {
 	ResolveDir string `json:"resolve_dir"`
 	// Nsswitch is the profile's nsswitch.conf.
 	Nsswitch string `json:"nsswitch"`
+	// Chain is the nesting chain ending with this session (issue #12).
+	Chain []control.SessionRef `json:"chain,omitempty"`
 }
 
 // Descriptor numbers in the helper process.

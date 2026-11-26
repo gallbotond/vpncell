@@ -11,6 +11,7 @@ const (
 	NativeHost    = "vpncell"
 	ExtensionID   = "vpncell@gallbotond.github.io"
 	EnvProfile    = "VPNCELL_PROFILE"
+	EnvSession    = "VPNCELL_SESSION"
 	NetnsPrefix   = "vpncell-"
 	WGIfPrefix    = "vpnwg"
 	TunIfPrefix   = "vpntun"

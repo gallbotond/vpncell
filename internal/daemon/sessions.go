@@ -162,6 +162,12 @@ func (t *sessionTable) list(profile string) []control.SessionInfo {
 	return out
 }
 
+func (t *sessionTable) get(id string) *sessionRec {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.m[id]
+}
+
 func (t *sessionTable) countLive(profile string) int { return len(t.list(profile)) }
 
 func (t *sessionTable) remove(id string) {

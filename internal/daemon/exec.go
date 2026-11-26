@@ -87,8 +87,12 @@ func (d *Daemon) handleExec(c *caller, conn *control.Conn, req *control.Request,
 		return nil, err
 	}
 	id := randomHex(6)
+	// Nested session: the command was started from inside another session.
+	parent := d.callerSession(c.PID)
+	chain := append(d.chain(parent), control.SessionRef{ID: id, Profile: p.Name})
 	spec := session.Spec{
-		ID: id, Profile: p.Name, NetnsPath: brand.NetnsPath(p.Name),
+		Chain: chain,
+		ID:    id, Profile: p.Name, NetnsPath: brand.NetnsPath(p.Name),
 		UID: c.UID, GID: c.GID, Groups: c.Groups,
 		Argv: x.Argv, Env: x.Env, Cwd: x.Cwd, TTY: x.TTY, Rows: x.Rows, Cols: x.Cols, Umask: x.Umask,
 		ResolveDir: filepath.Join(brand.ProfileRunDir(p.Name), "resolve"),
@@ -123,6 +127,7 @@ func (d *Daemon) handleExec(c *caller, conn *control.Conn, req *control.Request,
 	specR.Close()
 	rec := &sessionRec{SessionInfo: control.SessionInfo{
 		ID: id, Profile: p.Name, UID: c.UID, PID: cmd.Process.Pid, Command: x.Argv, Started: time.Now().Unix(),
+		Parent: parent,
 	}, HelperPID: cmd.Process.Pid}
 	scope := scopeName(p.Name, c.UID, id)
 	ctx, cancel := context.WithTimeout(d.ctx, 15*time.Second)

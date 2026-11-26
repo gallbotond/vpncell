@@ -738,6 +738,27 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     in `/usr/lib/NetworkManager/conf.d/` (not a conffile). The package
     installs the Firefox policy of item 26.
 
+### Changes after the build (issue run, 2026-11-26)
+
+31. **Hello deadline in the client** (#8): systemd's fd store keeps the
+    control socket listening while the daemon is stopped, so `client.Dial`
+    waits for the hello reply with a deadline and checks the unit state
+    (README "When the daemon is not running").
+32. **OpenVPN state and log history** (#14): status reads `state all`
+    (and, after a TLS error with a server reply, `log 500`) instead of
+    `state`, to report why a tunnel does not connect.
+33. **ping in sessions** (#10): `ping_group_range` copied from the host
+    into each namespace; `/usr/bin/ping` bind-mounted `nosuid` in the
+    session mount namespace (DECISIONS.md, "ping in profile sessions").
+34. **Session identity** (#12): sessions get `VPNCELL_SESSION`; the daemon
+    records each session's parent (the caller's session at `exec`) for
+    nesting chains. It finds a caller's session from the systemd scope in
+    `/proc/<pid>/cgroup` and its network from `/proc/<pid>/ns/net`. The
+    latter needs ptrace read access, which the daemon lacks (no
+    `CAP_SYS_PTRACE` in its bounding set, and none is added): the `stat`
+    runs on a throwaway thread with fsuid/fsgid set to the caller's
+    (`PTRACE_MODE_READ_FSCREDS` then sees the same user).
+
 ## 13. Lifecycle
 
 - **Unit** `vpncelld.service`: `Type=notify`, `Restart=on-failure`,

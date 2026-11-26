@@ -72,8 +72,12 @@ type Response struct {
 
 	// session
 	SessionID string `json:"session_id,omitempty"`
-	ExitCode  *int   `json:"exit_code,omitempty"`
-	Signal    int    `json:"signal,omitempty"`
+	// Chain: the new session's nesting chain, outermost first ("started").
+	Chain []SessionRef `json:"chain,omitempty"`
+	// Current: reply to "current".
+	Current  *CurrentInfo `json:"current,omitempty"`
+	ExitCode *int         `json:"exit_code,omitempty"`
+	Signal   int          `json:"signal,omitempty"`
 }
 
 type Error struct {
@@ -152,6 +156,35 @@ type SessionInfo struct {
 	Command []string `json:"command"`
 	Started int64    `json:"started"`
 	Scope   string   `json:"scope,omitempty"`
+	// Parent is the session the starting command ran in (nested sessions;
+	// issue #12). Empty: started from outside any session.
+	Parent string `json:"parent,omitempty"`
+	// Current marks the caller's own session; Outer an outer session of
+	// it (status, issue #12).
+	Current bool `json:"current,omitempty"`
+	Outer   bool `json:"outer,omitempty"`
+}
+
+// SessionRef names one session of a nesting chain.
+type SessionRef struct {
+	ID      string `json:"id"`
+	Profile string `json:"profile"`
+}
+
+// CurrentInfo answers "where am I?" (`vpncell current`, issue #12). The
+// daemon finds the caller's session from its cgroup and its network from
+// its network namespace (SO_PEERCRED pid); environment variables are not
+// trusted.
+type CurrentInfo struct {
+	// Session is the caller's session; nil outside any session.
+	Session *SessionInfo `json:"session,omitempty"`
+	// Chain lists the sessions from the outermost to the caller's own.
+	Chain []SessionRef `json:"chain,omitempty"`
+	// Network is the profile whose namespace the caller is in, "host",
+	// or "unknown" (another namespace).
+	Network string `json:"network"`
+	// State is the state of that profile (empty for host/unknown).
+	State string `json:"state,omitempty"`
 }
 
 type SocksInfo struct {
