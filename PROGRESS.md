@@ -52,6 +52,8 @@ AF_PACKET in the test binary.
 | #14 OpenVPN failure reason | `fix/openvpn-reconnect-reason` | [#21](https://github.com/gallbotond/vpncell/pull/21) | merged |
 | #10 ping in sessions | `fix/ping` | [#22](https://github.com/gallbotond/vpncell/pull/22) | merged |
 | #15 split-tunnel information | `fix/split-tunnel-info` | [#23](https://github.com/gallbotond/vpncell/pull/23) | merged |
+| follow-up: test key generated at runtime | `fix/test-key-runtime` | [#24](https://github.com/gallbotond/vpncell/pull/24) | merged |
+| #13 tls-crypt on the VM, `import --tls-auth` | `feat/tls-auth-import` | [#25](https://github.com/gallbotond/vpncell/pull/25) | merged |
 
 ### #8 + #9 (PR #20, package 0.9.2)
 
@@ -104,6 +106,19 @@ AF_PACKET in the test binary.
   after its next reconnect `vpncell status sonrisa` will flag this. Set
   `[dns] servers` (your internal resolver) if needed.
 
+### #13 (PR #25, package 0.9.9)
+
+- Test VM: OpenVPN server switched to `tls-crypt pki/ta.key` (server.conf
+  and openvpn-ui DB; backups `*.bak-vpncell-20261126072854`; README "Test
+  VM changes" item 4). Fetch script no longer rewrites; `vm-ovpn.ovpn`
+  re-fetched (old copy kept as `vm-ovpn.ovpn.bak-20261126072854`).
+- Local `demo-openvpn` switched to tls-crypt (same key; backup
+  `/etc/vpncell/secrets/demo-openvpn/client.ovpn.bak-vpncell-20261126072854`),
+  brought up again with `down --force` + `up`; your session in it survived.
+- `vpncell import --tls-auth` (explicit only).
+- Tests: `TestVMOpenVPNConfigAsDownloaded`, `TestImportTLSAuthOption`.
+  Full suite against 0.9.9: 117 passes, only `/snap` fail.
+
 ## Open items for the user
 
 1. **Snap Firefox still cannot start the native host** although the
@@ -116,6 +131,10 @@ AF_PACKET in the test binary.
    `make itest RUN=TestBrowser` (or tell me which app ID the portal uses).
 2. AMO signing (`packaging/amo-sign.sh` with your keys) — unchanged.
 3. Review README "Test VM changes" — unchanged.
+5. **`proxmox-test` OpenVPN client** (on your Proxmox machine) still has a
+   `<tls-auth>` config and cannot connect since the VM server uses
+   tls-crypt (#13). Download it again from openvpn-ui
+   (`http://free-vm:18080/certificates/proxmox-test`) on that machine.
 4. **GitGuardian incident 40980131** (PR #23, `internal/importer/reach_test.go`):
    the example `PrivateKey` from the `wg(8)` man page in a test. Not a real
    secret; PR #24 replaced it with keys generated at runtime. Please mark
