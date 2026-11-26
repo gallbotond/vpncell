@@ -99,3 +99,42 @@ const NMUnmanagedConf = `# Installed by vpncell: never manage vpncell tunnel dev
 [keyfile]
 unmanaged-devices=interface-name:vpnwg*;interface-name:vpntun*
 `
+
+// CapabilityBinaries are programs that Ubuntu ships with file capabilities
+// and that are useful without them (issue #10). Sessions run with
+// no_new_privs and no capabilities, so the kernel refuses to execute a
+// binary whose file capabilities have the effective bit set (EPERM).
+// UnprivilegeBinaries bind-mounts each one onto itself with nosuid: the
+// kernel ignores file capabilities on a nosuid mount, so the program runs
+// with the user's own (empty) capabilities. ping then uses an ICMP
+// datagram socket, which net.ipv4.ping_group_range allows in the profile
+// namespace. No capability is given to the session.
+var CapabilityBinaries = []string{"/usr/bin/ping"}
+
+// UnprivilegeBinaries must run in the session's private, slave mount
+// namespace. Binaries without file capabilities are left alone.
+func UnprivilegeBinaries() error {
+	for _, b := range CapabilityBinaries {
+		p, err := filepath.EvalSymlinks(b)
+		if err != nil {
+			continue
+		}
+		if !hasFileCaps(p) {
+			continue
+		}
+		if err := bindRO(p, p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func hasFileCaps(path string) bool {
+	n, err := unix.Getxattr(path, "security.capability", nil)
+	return err == nil && n > 0
+}
+
+// PingGroupRangeFile is the per-network-namespace setting that allows
+// unprivileged ICMP (and ICMPv6) datagram sockets. A new namespace starts
+// with "1 0" (nobody).
+const PingGroupRangeFile = "/proc/sys/net/ipv4/ping_group_range"

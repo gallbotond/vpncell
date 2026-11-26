@@ -186,7 +186,8 @@ func enterNamespaces(spec *Spec) error {
 	if err := platform.SetupResolver(spec.ResolveDir, spec.Nsswitch); err != nil {
 		return err
 	}
-	return nil
+	// ping & co. without their file capabilities (issue #10).
+	return platform.UnprivilegeBinaries()
 }
 
 // dropBoundingAndSetNoNewPrivs sets thread attributes that the child

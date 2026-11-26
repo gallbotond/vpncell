@@ -211,6 +211,17 @@ the resolver files). Measured on Ubuntu 26.04 with a GNOME session
 `localhost` is the profile's own loopback, not the host's. ssh-agent and
 gpg-agent (path sockets) work.
 
+`ping` (IPv4 and IPv6) works in a profile. Ubuntu's `/usr/bin/ping` has
+the file capability `cap_net_raw`, which a session (no capabilities,
+`no_new_privs`) cannot use: `execve` would fail with "Operation not
+permitted". In each session `ping` is therefore bind-mounted onto itself
+`nosuid`, so it runs without its file capability and uses an unprivileged
+ICMP socket; the profile namespace allows those for the same groups as
+the host (`net.ipv4.ping_group_range`, copied from the host). Sessions
+still get no capability (DECISIONS.md, "ping in profile sessions").
+Sessions started before vpncell 0.9.6 was installed keep the old
+behaviour until you open a new one.
+
 ## SOCKS5 proxy (used by the Firefox extension)
 
 For every configured profile the daemon listens on `127.0.0.1:<port>`
@@ -509,7 +520,9 @@ See also DESIGN.md §12 (every change made during the build) and §16.
   example `resolvectl query`) resolve through the host. glibc, curl, Go,
   Python and Firefox do not do this.
 - `sudo` and other setuid programs do not work inside a profile
-  (`no_new_privs`).
+  (`no_new_privs`). Programs that need raw sockets or other capabilities
+  (`arping`, `tcpdump`, `mtr` in raw mode) do not work either; `ping` is
+  handled specially and works.
 - **AppArmor-confined programs cannot connect to the host's path sockets
   from a profile shell.** The session's private mount namespace makes the
   peer socket's path "disconnected" for AppArmor, so a confined program's
