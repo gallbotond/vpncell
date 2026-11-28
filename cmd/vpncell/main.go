@@ -517,17 +517,28 @@ func cmdImport(args []string) error {
 	autostart := fs.String("autostart", "", "boot, on-use (default) or manual; --replace keeps the old value by default")
 	replace := fs.Bool("replace", false, "replace an existing profile's config (it must be down); its settings are kept unless a flag says otherwise")
 	tlsAuth := fs.Bool("tls-auth", false, "OpenVPN: use the config's tls-crypt key as tls-auth with key-direction 1 (only for servers that use tls-auth; README \"OpenVPN profiles\")")
+	fromNM := fs.Bool("from-nm", false, "import from a NetworkManager connection: --from-nm <connection> <name>; without arguments, list them")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *fromNM && fs.NArg() == 0 {
+		return listNM()
+	}
 	if fs.NArg() != 2 {
-		return fmt.Errorf("usage: sudo vpncell import [--user u] [--group g] [--auth-file f] [--autostart a] [--replace] [--tls-auth] <name> <wg.conf|file.ovpn>")
+		return fmt.Errorf("usage: sudo vpncell import [--user u] [--group g] [--auth-file f] [--autostart a] [--replace] [--tls-auth] <name> <wg.conf|file.ovpn>\n       sudo vpncell import --from-nm [options] [<connection> <name>]")
 	}
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("import needs root: sudo vpncell import ...")
 	}
-	name, path := fs.Arg(0), fs.Arg(1)
-	req, err := buildImport(name, path, *authFile, *tlsAuth)
+	var (
+		req *control.ImportRequest
+		err error
+	)
+	if *fromNM {
+		req, err = buildImportNM(fs.Arg(1), fs.Arg(0), *authFile, *tlsAuth)
+	} else {
+		req, err = buildImport(fs.Arg(0), fs.Arg(1), *authFile, *tlsAuth)
+	}
 	if err != nil {
 		return err
 	}

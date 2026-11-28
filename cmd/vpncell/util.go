@@ -53,15 +53,22 @@ func buildImport(name, path, authFile string, tlsAuth bool) (*control.ImportRequ
 	if err != nil {
 		return nil, err
 	}
+	return buildImportText(name, detectKind(path, text), text, filepath.Dir(path), authFile, tlsAuth)
+}
+
+// buildImportText builds an import from config text of the given kind;
+// relative file references are read from base.
+func buildImportText(name, kind, text, base, authFile string, tlsAuth bool) (*control.ImportRequest, error) {
+	var err error
 	if tlsAuth {
-		if detectKind(path, text) != "openvpn" {
+		if kind != "openvpn" {
 			return nil, fmt.Errorf("--tls-auth is for OpenVPN configs")
 		}
 		if text, err = importer.TLSCryptToTLSAuth(text); err != nil {
 			return nil, err
 		}
 	}
-	req := &control.ImportRequest{Name: name, Kind: detectKind(path, text), Config: text, Files: map[string]string{}}
+	req := &control.ImportRequest{Name: name, Kind: kind, Config: text, Files: map[string]string{}}
 	if authFile != "" {
 		a, err := readLimited(authFile)
 		if err != nil {
@@ -72,7 +79,6 @@ func buildImport(name, path, authFile string, tlsAuth bool) (*control.ImportRequ
 	if req.Kind != "openvpn" {
 		return req, nil
 	}
-	base := filepath.Dir(path)
 	for _, line := range strings.Split(text, "\n") {
 		f := strings.Fields(strings.TrimSpace(line))
 		if len(f) < 2 || strings.HasPrefix(f[0], "#") || strings.HasPrefix(f[0], ";") {

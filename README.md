@@ -195,6 +195,7 @@ running with the old settings, and `journalctl -u vpncelld` shows the error.
 | `vpncell up <profile>` / `down [--force\|--kill] <profile>` | bring a profile up or down (for OpenVPN, `up` exits with 3 if the tunnel is not connected after its 20 s wait; see "When an OpenVPN profile does not connect") |
 | `vpncell shell <profile>` | your shell inside the profile |
 | `vpncell run [-t\|-T] <profile> -- <cmd>...` | one command inside the profile |
+| `sudo vpncell import --from-nm [<connection> <name>]` | import a NetworkManager VPN connection; without arguments, list them (see "Importing from NetworkManager") |
 | `sudo vpncell import [--user u] [--group g] [--replace] <name> <file>` | import a `wg-quick` or `.ovpn` config (`--replace`: new config, same settings; see "Updating a profile's config") |
 | `sudo vpncell remove [--force\|--kill] <profile>` | take a profile down and delete its profile file and `/etc/vpncell/secrets/<name>/` (see "Removing a profile") |
 | `sudo vpncell reload` | re-read `/etc/vpncell/profiles.d` |
@@ -410,6 +411,40 @@ gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore --object
 installs signed add-ons; `packaging/amo-sign.sh` signs it as an *unlisted*
 add-on with your own AMO API keys. (The build never uploads anything to
 Mozilla.)
+
+### Importing from NetworkManager
+
+If the VPN already works in NetworkManager, import that connection instead
+of an `.ovpn` file that may be out of date:
+
+```bash
+sudo vpncell import --from-nm                    # list the connections you can import
+sudo vpncell import --from-nm work work          # NetworkManager connection "work" -> profile work
+```
+
+```
+read NetworkManager connection "work" (OpenVPN, tls, 4 files)
+profile work imported to /etc/vpncell/profiles.d/work.toml
+kept: …
+```
+
+The connection can be given by name or UUID. vpncell reads it (nothing in
+NetworkManager is changed), turns its settings into a client config
+key by key, copies the files it uses root-only into
+`/etc/vpncell/secrets/<name>/`, and imports that like a file, with the
+same allowlist and report. The other `import` options work as usual
+(`--user`, `--group`, `--autostart`, `--replace`, `--auth-file`).
+
+- **OpenVPN** and **WireGuard** connections are supported. `tap`,
+  proxies, static-key mode, PKCS#11 and settings vpncell does not know
+  make the import fail with the reason; import an `.ovpn` file then.
+- **Secrets:** a password or WireGuard private key that NetworkManager
+  stores in the connection is read from it. One kept in a user's keyring
+  (or asked for each time) cannot be read by root: give the OpenVPN
+  username and password with `--auth-file`; for WireGuard, import a
+  wg-quick file.
+- `nmcli connection export` is not used: it drops settings such as
+  `auth`.
 
 ## OpenVPN profiles
 
