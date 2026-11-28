@@ -834,6 +834,11 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     tab" line first (container → profile and state, or "connects
     directly" for default tabs and private windows); in the container
     list that container comes first, highlighted.
+45. **Popup dark mode** (#38). All popup colours are CSS variables on
+    `:root`, redefined under `@media (prefers-color-scheme: dark)`;
+    `color-scheme: light dark` makes form controls follow, and `body`
+    sets its own background and text colour. A unit test keeps colours
+    out of the rules.
 
 ## 13. Lifecycle
 

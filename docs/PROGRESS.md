@@ -61,6 +61,7 @@ AF_PACKET in the test binary.
 | #37 toolbar badge per tab | `feat/toolbar-badge` | [#50](https://github.com/gallbotond/vpncell/pull/50) | merged |
 | #34 popup: Profiles and Containers sections | `feat/popup-sections` | [#51](https://github.com/gallbotond/vpncell/pull/51) | merged |
 | #35 popup: current tab first | `feat/popup-current-tab` | [#52](https://github.com/gallbotond/vpncell/pull/52) | merged |
+| #38 popup: dark mode | `feat/popup-dark-mode` | [#53](https://github.com/gallbotond/vpncell/pull/53) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -242,6 +243,17 @@ AF_PACKET in the test binary.
 - Tests: `orderContainers`/`thisTab` unit test; tarball Firefox with the
   popup opened in a container tab ("This tab: Work → sonrisa up") and in a
   default tab ("This tab connects directly").
+
+### #38 (PR #53, extension only)
+
+- Colours moved to CSS variables on `:root` with a dark palette under
+  `prefers-color-scheme: dark`; `color-scheme: light dark`; `body` has an
+  explicit background and colour; the footer's inline colour became a
+  class.
+- Tests: `popup-css.test.mjs` (both palettes define the same variables,
+  no hex colours outside them, every `var()` defined); tarball Firefox
+  with `ui.systemUsesDarkTheme` set: dark panel, readable pills, chips and
+  buttons.
 
 ## Issue run (2026-11-26)
 

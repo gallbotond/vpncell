@@ -4,42 +4,65 @@
 <meta charset="utf-8">
 <title>vpncell</title>
 <style>
-  body { font: 13px system-ui, sans-serif; margin: 8px; min-width: 420px; }
+  /* Colours (issue #38): light by default, dark when Firefox's theme is. */
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #15141a; --muted: #6b6b70; --faint: #8f8f9d; --line: #dddde1;
+    --card-bg: #ffffff; --accent-bg: #eef4ff; --plain-bg: #f2f2f4; --accent: #0060df; --on-accent: #ffffff;
+    --ok: #058b00; --bad: #d70022; --warn: #a15c00; --mono: #555559;
+    --up-bg: #dff3dc; --up-fg: #1d6b14;
+    --down-bg: #ececef; --down-fg: #55555a;
+    --wait-bg: #fff1cc; --wait-fg: #8a5a00;
+    --bad-bg: #fde2e4; --bad-fg: #b00020;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #2b2a33; --fg: #fbfbfe; --muted: #b6b6be; --faint: #9a9aa4; --line: #4a4952;
+      --card-bg: #323139; --accent-bg: #2c3a55; --plain-bg: #3a3941; --accent: #0df; --on-accent: #15141a;
+      --ok: #54ffbd; --bad: #ff848b; --warn: #ffbd4f; --mono: #cfcfd8;
+      --up-bg: #1f4a2a; --up-fg: #8ff0a4;
+      --down-bg: #45444d; --down-fg: #d0d0d7;
+      --wait-bg: #5a4510; --wait-fg: #ffd667;
+      --bad-bg: #5c1f27; --bad-fg: #ffb3b9;
+    }
+  }
+  body { font: 13px system-ui, sans-serif; margin: 8px; min-width: 420px; background: var(--bg); color: var(--fg); }
   table { border-collapse: collapse; width: 100%; }
-  td { padding: 4px 6px; border-bottom: 1px solid #ddd; }
+  td { padding: 4px 6px; border-bottom: 1px solid var(--line); }
   td.name { padding-left: 8px; }
-  .ok { color: #058b00; } .bad { color: #d70022; font-weight: bold; }
-  #thistab { padding: 6px 8px; border-radius: 6px; background: #eef4ff; margin-bottom: 4px; }
-  #thistab.direct { background: #f2f2f2; color: #555; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); font-weight: bold; }
+  #thistab { padding: 6px 8px; border-radius: 6px; background: var(--accent-bg); margin-bottom: 4px; }
+  #thistab.direct { background: var(--plain-bg); color: var(--muted); }
   #thistab .cname, #thistab .pname { font-weight: 600; }
-  tr.current td { background: #eef4ff; }
-  .tag { margin-left: 6px; padding: 0 5px; border-radius: 7px; background: #0060df; color: #fff; font-size: 10px; vertical-align: middle; }
-  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #666; margin: 12px 0 4px; }
+  tr.current td { background: var(--accent-bg); }
+  .tag { margin-left: 6px; padding: 0 5px; border-radius: 7px; background: var(--accent); color: var(--on-accent); font-size: 10px; vertical-align: middle; }
+  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 12px 0 4px; }
   .cards { display: flex; flex-direction: column; gap: 6px; }
-  .card { border: 1px solid #ddd; border-radius: 6px; padding: 6px 8px; }
+  .card { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: var(--card-bg); }
   .card .head { display: flex; align-items: center; gap: 8px; }
   .card .pname { font-weight: 600; }
   .card .head button { margin-left: auto; }
-  .card .exitip { font-family: monospace; font-size: 11px; color: #555; margin-top: 2px; }
-  .card .why, td .why { color: #d70022; font-size: 12px; margin-top: 2px; }
-  .card .reach { color: #a15c00; font-size: 11px; margin-top: 2px; }
-  .card .hint { color: #666; font-size: 11px; }
+  .card .exitip { font-family: monospace; font-size: 11px; color: var(--mono); margin-top: 2px; }
+  .card .why, td .why { color: var(--bad); font-size: 12px; margin-top: 2px; }
+  .card .reach { color: var(--warn); font-size: 11px; margin-top: 2px; }
+  .card .hint { color: var(--muted); font-size: 11px; }
   .card details.reach summary { cursor: pointer; }
   .card .routes { white-space: pre; font-family: monospace; font-size: 11px; max-height: 120px; overflow-y: auto; }
-  .card .uses { color: #666; font-size: 11px; margin-top: 4px; }
-  tr.direct td { color: #888; } tr.direct select { opacity: .7; }
-  .muted { color: #888; }
+  .card .uses { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  tr.direct td { color: var(--faint); } tr.direct select { opacity: .7; }
+  .muted { color: var(--faint); }
   .pill { display: inline-block; padding: 0 8px; border-radius: 9px; font-size: 11px; font-weight: 600; line-height: 18px; }
-  .pill.up { background: #dff3dc; color: #1d6b14; }
-  .pill.down { background: #eee; color: #555; }
-  .pill.connecting { background: #fff1cc; color: #8a5a00; }
-  .pill.bad { background: #fde2e4; color: #b00020; }
-  .chip { display: inline-block; margin: 2px 4px 0 0; padding: 0 6px; border-radius: 8px; background: #fff1cc; color: #8a5a00; font-size: 11px; cursor: help; }
+  .pill.up { background: var(--up-bg); color: var(--up-fg); }
+  .pill.down { background: var(--down-bg); color: var(--down-fg); }
+  .pill.connecting { background: var(--wait-bg); color: var(--wait-fg); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad-fg); }
+  .chip { display: inline-block; margin: 2px 4px 0 0; padding: 0 6px; border-radius: 8px; background: var(--wait-bg); color: var(--wait-fg); font-size: 11px; cursor: help; }
+  .note { color: var(--muted); }
 </style>
 </head>
 <body>
 <div id="root">Loading…</div>
-<p style="color:#666">Only Multi-Account Containers can be mapped. Default tabs and private windows always connect directly.</p>
+<p class="note">Only Multi-Account Containers can be mapped. Default tabs and private windows always connect directly.</p>
 <script src="popup.js" type="module"></script>
 </body>
 </html>
