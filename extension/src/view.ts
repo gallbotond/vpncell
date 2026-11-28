@@ -75,3 +75,22 @@ export function profileOrder(names: string[], users: Record<string, string[]>): 
   const rest = names.filter((n) => !users[n]?.length).sort();
   return [...used, ...rest];
 }
+
+// Container rows: the current tab's container first (issue #35), then the
+// mapped ones, then the direct ones; otherwise in Firefox's order.
+export function orderContainers<C extends { id: string }>(containers: C[], mapping: Record<string, string>, current?: string): C[] {
+  const rank = (c: C) => (c.id === current ? 0 : mapping[c.id] ? 1 : 2);
+  return [...containers].sort((a, b) => rank(a) - rank(b)); // stable
+}
+
+// The "this tab" line at the top of the popup (issue #35).
+export function thisTab(
+  tab: { cookieStoreId?: string; incognito?: boolean } | undefined,
+  containers: { id: string; name: string }[],
+  mapping: Record<string, string>,
+): { kind: "direct"; text: string } | { kind: "container"; container: string; profile?: string } {
+  if (!tab || tab.incognito) return { kind: "direct", text: "This private window connects directly" };
+  const c = containers.find((x) => x.id === tab.cookieStoreId);
+  if (!c) return { kind: "direct", text: "This tab connects directly (not in a container)" };
+  return { kind: "container", container: c.name, profile: mapping[c.id] };
+}

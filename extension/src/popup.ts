@@ -1,7 +1,7 @@
 // Popup: the profiles (state, exit IP, Up/Down, which containers use them)
 // and the containers (which profile each uses).
 import { describeProblem, describeReach, ReachView, TunnelProblem } from "./decide.js";
-import { exitIPView, profileOrder, profileUsers } from "./view.js";
+import { exitIPView, orderContainers, profileOrder, profileUsers, thisTab } from "./view.js";
 interface PopupState {
   containers: { id: string; name: string; color: string; icon: string }[];
   mapping: Record<string, string>;
@@ -98,10 +98,11 @@ function profileCard(s: PopupState, n: string, users: string[]): HTMLElement {
 }
 
 // A container row: its name and the profile dropdown (issue #34).
-function containerRow(s: PopupState, c: PopupState["containers"][number], names: string[]): HTMLElement {
+function containerRow(s: PopupState, c: PopupState["containers"][number], names: string[], current: boolean): HTMLElement {
   const mapped = s.mapping[c.id];
-  const tr = el("tr", { "data-container": c.id, class: mapped ? "mapped" : "direct" });
+  const tr = el("tr", { "data-container": c.id, class: (mapped ? "mapped" : "direct") + (current ? " current" : "") });
   const name = el("td", { class: "name" }, c.name);
+  if (current) name.append(el("span", { class: "tag" }, "this tab"));
   name.style.borderLeft = `4px solid ${c.color}`;
   const sel = el("select", { "data-container": c.id, class: "mapping" });
   sel.append(el("option", { value: "" }, "Direct (no VPN)"));
@@ -130,12 +131,42 @@ function containerRow(s: PopupState, c: PopupState["containers"][number], names:
   return tr;
 }
 
+// The tab the popup was opened for (issue #35).
+async function activeTab(): Promise<browser.tabs.Tab | undefined> {
+  try {
+    return (await browser.tabs.query({ active: true, currentWindow: true }))[0];
+  } catch {
+    return undefined;
+  }
+}
+
+// "This tab: Work → sonrisa (up)" or "This tab connects directly".
+function thisTabLine(s: PopupState, tab: browser.tabs.Tab | undefined): HTMLElement {
+  const t = thisTab(tab, s.containers, s.mapping);
+  const line = el("div", { id: "thistab" });
+  if (t.kind === "direct") {
+    line.classList.add("direct");
+    line.textContent = t.text;
+    return line;
+  }
+  line.append(el("span", { class: "label" }, "This tab: "), el("span", { class: "cname" }, t.container), document.createTextNode(" → "));
+  if (!t.profile) {
+    line.append(el("span", { class: "muted" }, "direct (no VPN)"));
+  } else {
+    line.append(el("span", { class: "pname" }, t.profile), document.createTextNode(" "));
+    const p = s.profiles[t.profile];
+    line.append(pill(p?.state ?? "unknown", s.problems[t.profile] ?? (p ? undefined : "unavailable")));
+  }
+  return line;
+}
+
 async function render(): Promise<void> {
-  const s: PopupState = await browser.runtime.sendMessage({ cmd: "getState" });
+  const [s, tab]: [PopupState, browser.tabs.Tab | undefined] = await Promise.all([browser.runtime.sendMessage({ cmd: "getState" }), activeTab()]);
   const root = document.getElementById("root")!;
   root.replaceChildren();
   const daemon = el("p", { id: "daemon", class: s.daemonUp ? "ok" : "bad" }, s.daemonUp ? "vpncelld: connected" : "vpncelld: not reachable — mapped containers are blocked");
   root.append(daemon);
+  root.append(thisTabLine(s, tab));
   const names = Object.keys(s.profiles).sort();
   const users = profileUsers(s.mapping, s.containers);
   if (names.length > 0) {
@@ -149,9 +180,8 @@ async function render(): Promise<void> {
     root.append(el("p", {}, "No containers. Create Multi-Account Containers first; default tabs and private windows always connect directly."));
   }
   const table = el("table", { class: "containers" });
-  // Mapped containers first; Array.sort is stable, so each group keeps its order.
-  const containers = [...s.containers].sort((a, b) => Number(!s.mapping[a.id]) - Number(!s.mapping[b.id]));
-  for (const c of containers) table.append(containerRow(s, c, names));
+  const current = tab && !tab.incognito ? tab.cookieStoreId : undefined;
+  for (const c of orderContainers(s.containers, s.mapping, current)) table.append(containerRow(s, c, names, c.id === current));
   root.append(table);
 }
 

@@ -829,6 +829,11 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     "Used by" line. Container rows keep only the dropdown; a container
     mapped to a profile without a card (unknown, not allowed) says it is
     blocked there.
+44. **Current tab first** (#35). The popup asks `tabs.query({active,
+    currentWindow})` for the tab it was opened for and shows a "This
+    tab" line first (container → profile and state, or "connects
+    directly" for default tabs and private windows); in the container
+    list that container comes first, highlighted.
 
 ## 13. Lifecycle
 

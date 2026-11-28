@@ -320,8 +320,10 @@ names are resolved inside the profile (`proxyDNS`).
   `/usr/lib/mozilla/native-messaging-hosts/vpncell.json`; `vpncell
   firefox-setup --user` also writes a per-user copy to
   `~/.mozilla/native-messaging-hosts/`.
-- Open the toolbar popup and choose a profile per container. The popup has
-  two sections. **Profiles**: one card per profile with its state (up,
+- Open the toolbar popup and choose a profile per container. Its first
+  line says which tunnel the current tab uses ("This tab: Work → work
+  (up)", or that it connects directly); that container's row comes first
+  and is highlighted. Then two sections. **Profiles**: one card per profile with its state (up,
   connecting, down, failed or blocked), why it is not connected, what it
   reaches, its Up/Down button and the containers that use it; the exit IP
   shows under the state if the profile sets `[status] exit_ip_url`
