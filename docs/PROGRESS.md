@@ -45,6 +45,28 @@ Harness notes: the session runs under the `claude-desktop` AppArmor
 profile; confined `tcpdump` cannot be signalled from it, so captures use
 AF_PACKET in the test binary.
 
+## Issue run (2026-11-28)
+
+| Issue(s) / PR | Branch | PR | State |
+|---|---|---|---|
+| IPv6 lifetime refreshes in the host network watcher | `fix/ignore-addr-lifetime-refresh` | [#29](https://github.com/gallbotond/vpncell/pull/29) | merged |
+
+### PR #29 (package 0.9.14)
+
+- The address watcher keeps a set of host addresses (seeded from
+  `AddrList` after subscribing) and fires only when an address appears or
+  goes away; router-advertisement lifetime refreshes no longer send
+  OpenVPN `SIGUSR1`. Rebased onto `main`; no code changes in review.
+- Tests: unit test `TestAddrSetIgnoresLifetimeRefresh`. No integration
+  test changes host addresses (hard limit). Against 0.9.14: `TestUpDown`,
+  `TestIsolationOverlap`, `TestVMExitIP`, `TestFailClosedShell`,
+  `TestOpenVPNReasonWrongKey`, `TestOpenVPNReasonRevokedCert`,
+  `TestDaemonRestartShell`, `TestVMFailClosedAndDNS`,
+  `TestNoSecretsInJournal`, `TestVMOpenVPNConfigAsDownloaded` pass.
+  `TestReachVMOpenVPN` fails when `TestVMExitIP` runs before it (also on
+  `main`): the daemon logs `tunnel routes` only when they change and never
+  forgets them on `down`. Fixed separately (next row).
+
 ## Issue run (2026-11-26)
 
 | Issue(s) | Branch | PR | State |
