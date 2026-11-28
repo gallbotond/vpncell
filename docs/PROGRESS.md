@@ -64,6 +64,7 @@ AF_PACKET in the test binary.
 | #35 popup: current tab first | `feat/popup-current-tab` | [#52](https://github.com/gallbotond/vpncell/pull/52) | merged |
 | #38 popup: dark mode | `feat/popup-dark-mode` | [#53](https://github.com/gallbotond/vpncell/pull/53) | merged |
 | #39 popup: container icons | `feat/popup-container-icons` | [#54](https://github.com/gallbotond/vpncell/pull/54) | merged |
+| #40 popup: status header, note as a tooltip | `feat/popup-header` | [#55](https://github.com/gallbotond/vpncell/pull/55) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -310,6 +311,14 @@ AF_PACKET in the test binary.
 - Tests: `containerIcon` unit test (only Firefox's URLs, colour checked);
   tarball Firefox: briefcase, cart, fingerprint and dollar icons in their
   colours.
+
+### #40 (PR #55, extension only)
+
+- Header bar with a status dot ("vpncelld connected"; a red bar with "not
+  reachable — mapped containers are blocked"); the containers-only note
+  is an ⓘ tooltip in it (also `aria-label`) and stays visible only in the
+  empty state. The footer is gone.
+- Tests: `headerView` unit test; tarball Firefox light and dark.
 
 ## Issue run (2026-11-26)
 

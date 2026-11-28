@@ -32,7 +32,11 @@
   td.name { padding-left: 4px; white-space: nowrap; }
   .cicon { display: inline-block; width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; mask-position: center; mask-size: contain; mask-repeat: no-repeat; }
   .cicon.dot { width: 10px; height: 10px; border-radius: 50%; margin: 0 9px 0 3px; vertical-align: 0; }
-  .ok { color: var(--ok); } .bad { color: var(--bad); font-weight: bold; }
+  #daemon { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin: -8px -8px 8px; border-bottom: 1px solid var(--line); background: var(--plain-bg); }
+  #daemon .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
+  #daemon.bad { background: var(--bad-bg); color: var(--bad-fg); font-weight: 600; }
+  #daemon.bad .dot { background: var(--bad); }
+  #daemon .info { margin-left: auto; color: var(--muted); cursor: help; font-weight: normal; }
   #thistab { padding: 6px 8px; border-radius: 6px; background: var(--accent-bg); margin-bottom: 4px; }
   #thistab.direct { background: var(--plain-bg); color: var(--muted); }
   #thistab .cname, #thistab .pname { font-weight: 600; }
@@ -64,7 +68,6 @@
 </head>
 <body>
 <div id="root">Loading…</div>
-<p class="note">Only Multi-Account Containers can be mapped. Default tabs and private windows always connect directly.</p>
 <script src="popup.js" type="module"></script>
 </body>
 </html>

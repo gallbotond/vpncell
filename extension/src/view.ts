@@ -103,3 +103,12 @@ export function containerIcon(iconUrl: string | undefined, color: string | undef
   const c = color && /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : "currentColor";
   return { mask: `url("${iconUrl}")`, color: c };
 }
+
+export const CONTAINERS_NOTE = "Only Multi-Account Containers can be mapped. Default tabs and private windows always connect directly.";
+
+// The header bar (issue #40): a status dot and the daemon state. When the
+// daemon is unreachable the message stays prominent: mapped containers are
+// blocked, never direct.
+export function headerView(daemonUp: boolean): { cls: "ok" | "bad"; text: string } {
+  return daemonUp ? { cls: "ok", text: "vpncelld connected" } : { cls: "bad", text: "vpncelld not reachable — mapped containers are blocked" };
+}

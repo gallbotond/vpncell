@@ -854,6 +854,11 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     `context-fill`, which an `<img>` in an extension page does not get
     (it renders black), so the SVG is a CSS mask over the colour. Only
     Firefox's own icon URLs are used; otherwise a colour dot.
+47. **Popup header** (#40). The daemon state is a header bar with a status
+    dot (red bar with "not reachable — mapped containers are blocked"
+    when it is down). The "Only Multi-Account Containers can be mapped"
+    footer moved to an ⓘ tooltip in the header; it stays visible only in
+    the empty state (no containers).
 
 ## 13. Lifecycle
 
