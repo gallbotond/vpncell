@@ -812,6 +812,15 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     the import report. Paths from NetworkManager are opened non-blocking
     and read only if they are regular files of at most 1 MiB, since any
     local user can create connections; key files are never read.
+40. **`import --from-nm`** (#18). The CLI (root) reads the connection over
+    the system bus (`ListConnections`, `GetSettings`; `GetSecrets` only
+    for a secret stored in the connection: the OpenVPN password, the
+    WireGuard private key and preshared keys) and builds what a file
+    import would send: OpenVPN `vpn.data` is mapped key by key to
+    directives (`internal/nmimport`; unknown keys fail the import), with
+    fixed file names (`ca.pem`, …) whose contents come from NetworkManager's
+    paths; WireGuard settings become a wg-quick file. The daemon's import
+    is unchanged, so the allowlist and report are the same as for files.
 41. **Popup exit IP** (#36). The exit IP column is gone: the IP shows under
     the state pill when the daemon probed one (`[status] exit_ip_url`);
     a connected profile without it has a tooltip naming the setting.

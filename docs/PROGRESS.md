@@ -57,6 +57,7 @@ AF_PACKET in the test binary.
 | #31 OpenVPN reconnect signal only when connected | `fix/openvpn-signal-only-connected` | [#45](https://github.com/gallbotond/vpncell/pull/45) | merged |
 | #30 host network watcher subscribes again | `fix/host-watch-resubscribe` | [#46](https://github.com/gallbotond/vpncell/pull/46) | merged |
 | #19 warn on an identity used by an active NetworkManager VPN | `feat/nm-identity-warning` | [#47](https://github.com/gallbotond/vpncell/pull/47) | merged |
+| #18 `import --from-nm` | `feat/import-from-nm` | [#48](https://github.com/gallbotond/vpncell/pull/48) | merged |
 | #36 popup: exit IP under the state | `feat/popup-exit-ip` | [#49](https://github.com/gallbotond/vpncell/pull/49) | merged |
 | #37 toolbar badge per tab | `feat/toolbar-badge` | [#50](https://github.com/gallbotond/vpncell/pull/50) | merged |
 | #34 popup: Profiles and Containers sections | `feat/popup-sections` | [#51](https://github.com/gallbotond/vpncell/pull/51) | merged |
@@ -198,6 +199,45 @@ AF_PACKET in the test binary.
   `TestReachVMOpenVPN`, `TestNoSecretsInJournal`,
   `TestDaemonRestartShell` pass.
 
+### #18 (PR #48, package 0.9.21)
+
+- `sudo vpncell import --from-nm [<connection> <name>]` (by name or UUID;
+  without arguments it lists). New `internal/nmimport`: OpenVPN `vpn.data`
+  mapped key by key (not `nmcli connection export`, which drops `auth`);
+  unknown keys, `tap`, proxies, static-key, PKCS#11 fail with the reason.
+  Files get fixed names (`ca.pem`, …) in the generated config, read from
+  NetworkManager's paths by the CLI (paths with spaces would otherwise be
+  rejected by the importer, and home paths stay out of the stored config).
+  WireGuard connections become a wg-quick file. The daemon is unchanged.
+- Secrets: read with `GetSecrets` only when stored in the connection
+  (flags 0): the OpenVPN password, the WireGuard private and preshared
+  keys. Keyring secrets: OpenVPN asks for `--auth-file`, WireGuard says to
+  import a wg-quick file. `--tls-auth` is refused with `--from-nm`.
+  Nothing is printed from them.
+- Tests: unit tests (`TestOpenVPNConfigGolden`: generated config and a
+  hand-written `.ovpn` give the same stored config through the real
+  importer, including `auth SHA256`; `TestOpenVPNConfigVariants`,
+  `TestOpenVPNConfigRefuses`, `TestFind`, `TestReadFromFakeNM` against a
+  fake NetworkManager on a private bus, incl. `GetSecrets`). Integration:
+  `TestImportFromNMOpenVPN` (inactive `t-nmovpn` from the lab ovpn1
+  client: list, import, profile connects, connection unchanged; `t-nmtap`
+  refused; `t-nmpass` with `password-flags 1` asks for `--auth-file`),
+  `TestImportFromNMWireGuard` (inactive `t-nmwg` added over D-Bus with
+  autoconnect off: import, DNS taken over, profile connects). All `t-`
+  connections are deleted afterwards and were never activated.
+- Real-world check: the host's inactive NM connections `vpn-lab-openvpn`
+  and `vpn-lab-wg` (test VM) imported into throwaway profiles `t-nmreal`,
+  `t-nmrealwg` without connecting them (same identities as
+  `demo-openvpn`/`demo-wireguard`), then removed: no unknown keys,
+  `auth SHA512` and `tls-auth` kept.
+- Against 0.9.21: `TestImportFromNM*`, `TestNM*`, `TestUpDown`,
+  `TestIsolationOverlap`, `TestImportReplace`, `TestImportSafety*`,
+  `TestImportTLSAuthOption`, `TestDaemonRestartShell` pass.
+- **Full suite against 0.9.21** (last daemon/CLI PR of the run, tarball
+  and snap Firefox): 129 passes. The 14 FAIL lines are the 7 known snap
+  browser subtests (portal permission, open item 1) and their 7 parent
+  tests, which fail only because of them; every tarball subtest passes.
+  `TestPackageUpgradeAndRemove` skips (this host has real profiles).
 ### #36 (PR #49, extension only)
 
 - The exit IP column is gone; the IP shows under the state pill when the
