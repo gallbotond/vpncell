@@ -69,7 +69,8 @@ that order, before the Windows and macOS design (#69).
 | #67 branch protection on `main`; required checks in AGENTS.md | `chore/ci` | [#75](https://github.com/gallbotond/vpncell/pull/75) | merged |
 | #71 progress per platform (`docs/progress/`), AGENTS.md per platform, labels | `chore/progress-split` | [#76](https://github.com/gallbotond/vpncell/pull/76) | merged |
 | #68a portable `profile` (`statUID` owner known/unknown), `importer`, `backend`; package 0.9.22, itest pass | `chore/portable-profile` | [#77](https://github.com/gallbotond/vpncell/pull/77) | merged |
-| #68b portable `control` (Transport interface; SCM_RIGHTS and peer credentials in `_linux.go`), `client`, `cmd/vpncell`, `cmd/vpncell-native`; package 0.9.23 | `chore/portable-control` | [#78](https://github.com/gallbotond/vpncell/pull/78) | merged |
+| #68b portable `control` (Transport interface; SCM_RIGHTS and peer credentials in `_linux.go`), `client`, `cmd/vpncell`, `cmd/vpncell-native`; package 0.9.23, itest pass | `chore/portable-control` | [#78](https://github.com/gallbotond/vpncell/pull/78) | merged |
+| #68c portable `socks` (`Dialer` injected; netns parts in `socks_linux.go`); #68d needs no split (no portable package imports `platform` or `session`); package 0.9.24 | `chore/portable-socks` | PRNUM | merged |
 
 ## Next backends: planning (2026-11-28)
 
