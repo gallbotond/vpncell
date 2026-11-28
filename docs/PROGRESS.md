@@ -10,11 +10,11 @@ and every open issue was fixed and merged: #16, #31, #30, #19, #18, #36,
 #37, #34, #35, #38, #39, #40 (PRs #44–#55). Follow-ups found on the way:
 #42 (routes log per connection), #43 (the test VM's new IPv4 exit). No
 open issues or PRs remain. Package 0.9.21 is installed. The full
-integration suite against 0.9.21 had 129 passes; only the 7 known snap
-browser subtests (and their parents) fail. The browser tests with the
-final extension (after #55) pass with the tarball Firefox, and with the
-snap Firefox too since the portal grant for `snap.firefox_geckodriver`
-(open item 1, PR #57). See "Issue run
+integration suite against 0.9.21 had 129 passes and 7 snap browser
+failures (plus their parent tests). Those 7 were fixed by the portal grant
+for `snap.firefox_geckodriver` (PR #57): since then all 7 `TestBrowser*`
+tests pass with the tarball and the snap Firefox, so a snap browser
+failure is now a regression, not a known failure. See "Issue run
 (2026-11-28)" and "Open items for the user".
 
 ## Steps
@@ -73,6 +73,7 @@ AF_PACKET in the test binary.
 | #39 popup: container icons | `feat/popup-container-icons` | [#54](https://github.com/gallbotond/vpncell/pull/54) | merged |
 | #40 popup: status header, note as a tooltip | `feat/popup-header` | [#55](https://github.com/gallbotond/vpncell/pull/55) | merged |
 | follow-up: snap Firefox portal ID in the tests and README | `fix/snap-geckodriver-permission` | [#57](https://github.com/gallbotond/vpncell/pull/57) | merged |
+| review of #57: portal ID check, session bus, browser user | `fix/snap-portal-check-review` | [#65](https://github.com/gallbotond/vpncell/pull/65) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -342,6 +343,22 @@ AF_PACKET in the test binary.
   instead of uid 1000) and prints the exact command; README "Snap
   Firefox" explains both IDs.
 - Against 0.9.21: all 7 `TestBrowser*` tests pass, tarball and snap.
+
+### Review of PR #57 (PR #65, test and docs only)
+
+- The pre-check accepts `snap.firefox_geckodriver` (Ubuntu's patched
+  portal) or `snap.firefox` (upstream and unpatched portals, which use it
+  for every app of the snap). With only `snap.firefox`, the snap tests
+  run, and an "extension connected" timeout names the sub-app ID and the
+  grant command.
+- A permission store that cannot be asked (no session bus, nobody logged
+  in) is reported as that, not as a missing grant; `NotFound` still means
+  "not granted".
+- The desktop user is `VPNCELL_TEST_BROWSER_USER`, else `SUDO_USER`, else
+  `botond`; the other hard-coded `botond`/uid 1000 uses in the tests
+  (profile import, `TestDownOtherUsersSessions`, `TestDesktopPrograms`,
+  `TestImportReplace`) use it too.
+- This status paragraph no longer calls the snap failures known.
 
 ## Issue run (2026-11-26)
 
