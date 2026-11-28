@@ -16,7 +16,8 @@ never see each other, the host's `localhost` or the LAN. If a tunnel is down,
 traffic fails instead of falling back to the normal connection.
 
 Design: [docs/DESIGN.md](docs/DESIGN.md). Build history and open items:
-[docs/PROGRESS.md](docs/PROGRESS.md).
+[docs/PROGRESS.md](docs/PROGRESS.md) (index per platform; Linux:
+[docs/progress/linux.md](docs/progress/linux.md)).
 
 ## Install (Ubuntu 26.04 LTS)
 
