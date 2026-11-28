@@ -788,6 +788,16 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     openvpn resolves the remote on its next attempt anyway, and a signal
     during its restart pause started the pause again, so steady host
     network churn kept it from ever connecting.
+38. **Host network watcher stays subscribed** (#30). The netlink library
+    closes an address or route subscription when a receive fails (for
+    example `ENOBUFS` after a burst of events); the watcher then ended
+    silently. Now each subscription logs the library's errors
+    (`address watch error` / `route watch error`), and when it ends or
+    cannot be made the daemon logs it and subscribes again after 2 s
+    (doubling up to 1 min while it keeps failing). After a new
+    subscription the address set is seeded again and one change is
+    reported, since changes may have been missed. Errors caused by closing
+    the subscription on shutdown are not logged.
 
 ## 13. Lifecycle
 
