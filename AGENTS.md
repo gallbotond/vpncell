@@ -59,6 +59,17 @@ packaging/build-deb.sh 0.9.N     # .deb into bin/
   Names: `fix/…`, `feat/…`, `chore/…`.
 - Merge the PR yourself once its tests and CI checks pass. Add a row for it
   in docs/PROGRESS.md.
+- Required checks on `main` (branch protection, not enforced for admins, no
+  required reviews): `linux` and `cross-compile` from
+  `.github/workflows/ci.yml`, and `GitGuardian Security Checks`. Wait until
+  all three pass before you merge, even though an admin merge could skip
+  them.
+- `cross-compile` builds and vets an explicit list of packages for Windows
+  and macOS. When a package becomes portable, add it to the list in
+  `ci.yml`. Never remove one to make the check pass.
+- The `gh` token has no `workflow` scope, so an HTTPS push that changes
+  `.github/workflows/` is refused. Push that branch over SSH:
+  `git push git@github.com:gallbotond/vpncell.git <branch>`.
 
 ## Parallel work
 
