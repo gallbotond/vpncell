@@ -45,15 +45,22 @@ jobs:
       # VET is also vetted, which compiles the tests too, so a package is in
       # VET only once its tests build on every target.
       BUILD: >-
+        ./internal/backend
         ./internal/brand
         ./internal/conflict
         ./internal/dnsfiles
+        ./internal/importer
         ./internal/nmimport
+        ./internal/profile
         ./internal/reach
       VET: >-
+        ./internal/backend
         ./internal/brand
         ./internal/conflict
         ./internal/dnsfiles
+        ./internal/importer
+        ./internal/nmimport
+        ./internal/profile
         ./internal/reach
     steps:
       - uses: actions/checkout@v5

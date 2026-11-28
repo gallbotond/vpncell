@@ -69,6 +69,20 @@ packaging/           # debian/, systemd units, manifests
 test/                # integration tests, local lab, Firefox tests
 ```
 
+Portable packages (#68). These build and pass `go vet` for Windows and
+macOS, and CI (`cross-compile` in `.github/workflows/ci.yml`) keeps them so.
+Platform code inside them sits in `_linux.go` files; other platforms get
+stubs that report "unsupported" until the Windows and macOS design (#69)
+says what replaces them. Linux behaviour does not change.
+
+| Package | Linux-only part (other platforms) |
+|---|---|
+| `profile` | file owner in `stat_linux.go` (owner unknown, so the root-owner check is skipped; the mode check still runs) |
+| `importer`, `backend` (the interface), `brand`, `conflict`, `dnsfiles`, `nmimport`, `reach` | none |
+
+Linux-only packages: `netns`, `firewall`, `backend/wireguard`,
+`backend/openvpn`, `daemon`, `cmd/vpncelld`.
+
 Privileged code is `cmd/vpncelld` plus `internal/{netns,backend,session,socks,firewall,dnsfiles}`.
 Nothing in the daemon calls a shell or `ip`/`wg`/`nft`. The only external
 program it starts is `openvpn`, and only through systemd.

@@ -216,7 +216,7 @@ func checkRootOnly(path string) error {
 	if st.Mode().Perm()&0o022 != 0 {
 		return fmt.Errorf("%s: writable by group or others; refusing", path)
 	}
-	if uid := statUID(st); uid != 0 && os.Getuid() == 0 {
+	if uid, known := statUID(st); known && uid != 0 && os.Getuid() == 0 {
 		return fmt.Errorf("%s: not owned by root; refusing", path)
 	}
 	return nil
