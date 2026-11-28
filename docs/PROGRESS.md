@@ -66,7 +66,7 @@ that order, before the Windows and macOS design (#69).
 | Issue(s) / PR | Branch | PR | State |
 |---|---|---|---|
 | #67 CI: `linux` (make build, make test) and `cross-compile` (windows/darwin, amd64/arm64) | `chore/ci` | [#74](https://github.com/gallbotond/vpncell/pull/74) | merged |
-| #67 branch protection on `main`; required checks in AGENTS.md | `chore/ci` | PRNUM | merged |
+| #67 branch protection on `main`; required checks in AGENTS.md | `chore/ci` | [#75](https://github.com/gallbotond/vpncell/pull/75) | merged |
 
 ## Next backends: planning (2026-11-28)
 
