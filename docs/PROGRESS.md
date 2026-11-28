@@ -51,6 +51,7 @@ AF_PACKET in the test binary.
 |---|---|---|---|
 | IPv6 lifetime refreshes in the host network watcher | `fix/ignore-addr-lifetime-refresh` | [#29](https://github.com/gallbotond/vpncell/pull/29) | merged |
 | follow-up: `tunnel routes` logged on every connection | `fix/routes-log-per-connection` | [#42](https://github.com/gallbotond/vpncell/pull/42) | merged |
+| popup compact and stable | `feat/popup-compact-ui` | [#33](https://github.com/gallbotond/vpncell/pull/33) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -79,6 +80,19 @@ AF_PACKET in the test binary.
   `TestReachSplitWireGuard`, `TestReachNoDNS`, `TestUpDown`,
   `TestVMFailClosedAndDNS`, `TestDaemonRestartShell`. Unit test
   `TestNoteRoutes`.
+
+### PR #33 (extension only)
+
+- Popup: state pills, long route lists collapsed into a count with an
+  expandable list, DNS warning chips, mapped containers first, inline
+  errors instead of `alert()`, and a redraw that no longer closes an open
+  dropdown. The earlier review points were addressed on the branch;
+  rebased onto `main`. `make extension` now creates `bin/` (it failed in a
+  fresh worktree).
+- Tests: extension unit tests (8/8), `make build && make test`, extension
+  build. Checked in the tarball Firefox (headless, temporary profile, real
+  daemon): mapped rows show `up` pills, `sonrisa` shows "only 44 IPv4
+  networks" collapsed with a "DNS unreachable" chip, direct rows dimmed.
 
 ## Issue run (2026-11-26)
 
