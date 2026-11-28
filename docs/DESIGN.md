@@ -416,9 +416,10 @@ persistent background page**, as designed.
   of failing), then switches to the fail-closed proxy.
 - Cache refresh: on daemon events (profile up/down, credentials changed) pushed
   through the native host, and every 60 s as a fallback.
-- Popup: per container its profile, state (up/connecting/down/failed), exit IP
-  if known (under the state, no column of its own; §12 item 41), a profile
-  selector, and up/down buttons when the user is allowed.
+- Popup: a Profiles section (one card per profile: state
+  up/connecting/down/failed/blocked, exit IP if known, why it is not
+  connected, what it reaches, Up/Down, the containers that use it; §12
+  items 41, 43) and a Containers section (a profile selector per container).
 
 ### 9.3 Native messaging
 
@@ -822,6 +823,12 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     `onCreated` and every state change (coalesced to one pass over all
     tabs per 100 ms). The global badge `!` is gone; the default title
     still lists blocked profiles, and notifications are unchanged.
+43. **Popup sections** (#34). Up/Down acts on a profile, so it moved from
+    the container rows to one card per profile (profiles that containers
+    use first), with the tunnel details shown once per profile and a
+    "Used by" line. Container rows keep only the dropdown; a container
+    mapped to a profile without a card (unknown, not allowed) says it is
+    blocked there.
 
 ## 13. Lifecycle
 
