@@ -60,6 +60,7 @@ AF_PACKET in the test binary.
 | #36 popup: exit IP under the state | `feat/popup-exit-ip` | [#49](https://github.com/gallbotond/vpncell/pull/49) | merged |
 | #37 toolbar badge per tab | `feat/toolbar-badge` | [#50](https://github.com/gallbotond/vpncell/pull/50) | merged |
 | #34 popup: Profiles and Containers sections | `feat/popup-sections` | [#51](https://github.com/gallbotond/vpncell/pull/51) | merged |
+| #35 popup: current tab first | `feat/popup-current-tab` | [#52](https://github.com/gallbotond/vpncell/pull/52) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -231,6 +232,16 @@ AF_PACKET in the test binary.
 - Tests: `profileUsers`/`profileOrder` unit test; `make test`, extension
   build; tarball Firefox with three containers mapped to two profiles
   ("Used by: Work, Banking").
+
+### #35 (PR #52, extension only)
+
+- "This tab" line at the top (container → profile with its state pill, or
+  "connects directly" for default tabs and private windows, also for a
+  mapped container's tab in a private window); the current container's
+  row first in Containers, highlighted with a "this tab" tag.
+- Tests: `orderContainers`/`thisTab` unit test; tarball Firefox with the
+  popup opened in a container tab ("This tab: Work → sonrisa up") and in a
+  default tab ("This tab connects directly").
 
 ## Issue run (2026-11-26)
 

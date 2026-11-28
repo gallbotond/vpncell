@@ -74,3 +74,26 @@ test("profile cards and their containers (issue #34)", async () => {
   assert.deepEqual(users, { work: ["Work", "Mail"], lab: ["Lab"] });
   assert.deepEqual(profileOrder(["zeta", "work", "alpha", "lab"], users), ["lab", "work", "alpha", "zeta"]);
 });
+
+test("current tab's container first (issue #35)", async () => {
+  const { orderContainers, thisTab } = await import("../build/view.js");
+  const cs = [
+    { id: "firefox-container-1", name: "Personal" },
+    { id: "firefox-container-2", name: "Work" },
+    { id: "firefox-container-3", name: "Banking" },
+    { id: "firefox-container-4", name: "Shopping" },
+  ];
+  const mapping = { "firefox-container-2": "work", "firefox-container-4": "lab" };
+  const ids = (xs) => xs.map((c) => c.name);
+  assert.deepEqual(ids(orderContainers(cs, mapping, "firefox-container-3")), ["Banking", "Work", "Shopping", "Personal"]);
+  assert.deepEqual(ids(orderContainers(cs, mapping, "firefox-default")), ["Work", "Shopping", "Personal", "Banking"]);
+  assert.deepEqual(ids(orderContainers(cs, mapping)), ["Work", "Shopping", "Personal", "Banking"]);
+
+  assert.deepEqual(thisTab({ cookieStoreId: "firefox-container-2" }, cs, mapping), { kind: "container", container: "Work", profile: "work" });
+  assert.deepEqual(thisTab({ cookieStoreId: "firefox-container-1" }, cs, mapping), { kind: "container", container: "Personal", profile: undefined });
+  assert.equal(thisTab({ cookieStoreId: "firefox-default" }, cs, mapping).kind, "direct");
+  assert.match(thisTab({ cookieStoreId: "firefox-private", incognito: true }, cs, mapping).text, /private window connects directly/);
+  // Even a mapped container's tab in a private window connects directly.
+  assert.equal(thisTab({ cookieStoreId: "firefox-container-2", incognito: true }, cs, mapping).kind, "direct");
+  assert.equal(thisTab(undefined, cs, mapping).kind, "direct");
+});
