@@ -53,6 +53,7 @@ export interface ReachSummary {
 }
 
 const MAX_INLINE_ROUTES = 3;
+const CIDR = /^[0-9a-f.:]+\/\d+$/i; // not labels such as "IPv6 internet (2000::/3)"
 
 export function describeReach(r: ReachView | undefined): ReachSummary | null {
   if (!r) return null;
@@ -61,10 +62,12 @@ export function describeReach(r: ReachView | undefined): ReachSummary | null {
   if (r.split && r.text) {
     // Daemon text: "<IPv4 part>; <IPv6 part>", e.g. "only 10.0.0.0/8, ...; no IPv6".
     const parts = r.text.split("; ").map((part, i) => {
-      const list = part.replace(/^only /, "").split(", ");
-      if (list.length <= MAX_INLINE_ROUTES) return part;
-      routes.push(...list);
-      return `${part.startsWith("only ") ? "only " : ""}${list.length} ${i === 0 ? "IPv4" : "IPv6"} networks`;
+      const items = part.replace(/^only /, "").split(", ");
+      const cidrs = items.filter((x) => CIDR.test(x));
+      if (cidrs.length <= MAX_INLINE_ROUTES) return part;
+      routes.push(...cidrs);
+      const kept = [...items.filter((x) => !CIDR.test(x)), `${cidrs.length} ${i === 0 ? "IPv4" : "IPv6"} networks`];
+      return `${part.startsWith("only ") ? "only " : ""}${kept.join(", ")}`;
     });
     summary = r.source === "pushed" ? `server routes: ${parts.join("; ")} (no redirect-gateway)` : `reaches ${parts.join("; ")}`;
   }

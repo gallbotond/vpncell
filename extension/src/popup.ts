@@ -11,8 +11,11 @@ interface PopupState {
 
 // UI state that must survive the 5 s redraw.
 const busy = new Set<string>(); // profiles with an up/down request in flight
-const errors = new Map<string, string>(); // container id -> last failed action
-const openRoutes = new Set<string>(); // profiles whose route list is expanded
+// Last failed action: "p:<profile>" for up/down (shown on every row using the
+// profile, dropped once its state changes), "c:<container id>" for mapping.
+const errors = new Map<string, { msg: string; state?: string }>();
+const openRoutes = new Set<string>(); // container ids whose route list is expanded
+let lastSelectInput = 0; // ms; last mousedown/keydown/focus on a mapping <select>
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -21,21 +24,21 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   return e;
 }
 
-// Run a background command for one row; show a failure in that row.
-async function act(containerId: string, msg: object): Promise<void> {
+// Run a background command; keep a failure under `key` to show in the rows.
+async function act(key: string, msg: object, state?: string): Promise<void> {
   try {
     await browser.runtime.sendMessage(msg);
-    errors.delete(containerId);
+    errors.delete(key);
   } catch (e) {
-    errors.set(containerId, String(e instanceof Error ? e.message : e));
+    errors.set(key, { msg: String(e instanceof Error ? e.message : e), state });
   }
 }
 
 function pill(state: string, blocked: string | undefined): HTMLElement {
-  if (blocked) return el("span", { class: "pill bad", title: blocked }, "blocked");
-  const [word, ...rest] = state.split(":");
+  if (blocked) return el("span", { class: "pill bad" }, "blocked");
+  const word = state.split(":")[0];
   const cls = word === "up" ? "up" : word === "down" ? "down" : word === "connecting" ? "connecting" : "bad";
-  return el("span", { class: `pill ${cls}`, title: rest.join(":").trim() }, word);
+  return el("span", { class: `pill ${cls}` }, word);
 }
 
 async function render(): Promise<void> {
@@ -68,8 +71,9 @@ async function render(): Promise<void> {
       o.selected = true;
       sel.append(o);
     }
+    for (const ev of ["mousedown", "keydown", "focus"]) sel.addEventListener(ev, () => (lastSelectInput = Date.now()));
     sel.addEventListener("change", async () => {
-      await act(c.id, { cmd: "setMapping", cookieStoreId: c.id, profile: sel.value || null });
+      await act(`c:${c.id}`, { cmd: "setMapping", cookieStoreId: c.id, profile: sel.value || null });
       render();
     });
     const p = mapped ? s.profiles[mapped] : undefined;
@@ -83,21 +87,25 @@ async function render(): Promise<void> {
     if (why) {
       state.append(el("div", { class: "why", title: why.detail }, why.summary));
       if (why.detail) state.append(el("div", { class: "hint" }, why.detail));
+    } else if (mapped && !blocked && p?.state.includes(":")) {
+      // e.g. "failed: tunnel interface missing" with no daemon reason.
+      state.append(el("div", { class: "why" }, p.state.slice(p.state.indexOf(":") + 1).trim()));
     }
     // What the profile reaches; no fallback to the normal connection (issue #15).
     const reach = mapped && !blocked ? describeReach(p?.reach) : null;
     if (reach?.summary) {
       if (reach.routes.length > 0) {
         const d = el("details", { class: "reach" });
-        d.open = openRoutes.has(mapped);
-        d.addEventListener("toggle", () => (d.open ? openRoutes.add(mapped) : openRoutes.delete(mapped)));
+        d.open = openRoutes.has(c.id);
+        d.addEventListener("toggle", () => (d.open ? openRoutes.add(c.id) : openRoutes.delete(c.id)));
         d.append(el("summary", {}, reach.summary), el("div", { class: "routes" }, reach.routes.join("\n")));
         state.append(d);
       } else state.append(el("div", { class: "reach" }, reach.summary));
     }
     for (const w of reach?.warnings ?? []) state.append(el("span", { class: "chip", title: w.title }, `⚠ ${w.label}`));
-    const err = errors.get(c.id);
-    if (err) state.append(el("div", { class: "why" }, err));
+    const pErr = mapped ? errors.get(`p:${mapped}`) : undefined;
+    if (pErr && pErr.state !== p?.state) errors.delete(`p:${mapped}`); // state moved on, e.g. autostart
+    for (const e of [errors.get(`p:${mapped}`), errors.get(`c:${c.id}`)]) if (e) state.append(el("div", { class: "why" }, e.msg));
     const ip = el("td", { class: "exitip" }, p?.exitIP ?? "");
     const actions = el("td");
     if (mapped && p) {
@@ -107,7 +115,8 @@ async function render(): Promise<void> {
       b.addEventListener("click", async () => {
         busy.add(mapped);
         b.disabled = true;
-        await act(c.id, { cmd: up ? "up" : "down", profile: mapped });
+        // Record the state as of the click; the error is dropped when it changes.
+        await act(`p:${mapped}`, { cmd: up ? "up" : "down", profile: mapped }, p.state);
         busy.delete(mapped);
         render();
       });
@@ -122,7 +131,12 @@ async function render(): Promise<void> {
 }
 
 render();
-// Redrawing replaces the <select>, which would close an open dropdown.
+// Redrawing replaces the <select>, which would close an open dropdown. A
+// select keeps focus after Escape or re-picking its value, so skip only
+// shortly after input on it, not for as long as it is focused.
+// ponytail: time-boxed guess, a dropdown left open >10 s idle closes; patch
+// rows in place instead of rebuilding if that bites.
 setInterval(() => {
-  if (document.activeElement?.tagName !== "SELECT") render();
+  if (document.activeElement?.tagName === "SELECT" && Date.now() - lastSelectInput < 10_000) return;
+  render();
 }, 5000);

@@ -105,6 +105,17 @@ test("reach notes from status (issue #15)", async () => {
   const big = describeReach(reachFromStatus({ state: "up", reaches: `only ${many.join(", ")}; no IPv6`, routes_source: "pushed", split_tunnel: true }));
   assert.equal(big.summary, "server routes: only 4 IPv4 networks; no IPv6 (no redirect-gateway)");
   assert.deepEqual(big.routes, many);
+  // IPv6 part: no "only " prefix, and the "IPv6 internet" label is not counted as a network.
+  const v6 = ["fd00:1::/64", "fd00:2::/64", "fd00:3::/64", "fd00:4::/64"];
+  const big6 = describeReach(reachFromStatus({ state: "up", reaches: `only 10.0.0.0/8; IPv6 internet (2000::/3), ${v6.join(", ")}`, routes_source: "allowed-ips", split_tunnel: true }));
+  assert.equal(big6.summary, "reaches only 10.0.0.0/8; IPv6 internet (2000::/3), 4 IPv6 networks");
+  assert.deepEqual(big6.routes, v6);
+  // Full tunnel without DNS: only the warning; the popup relies on the empty summary.
+  assert.deepEqual(describeReach(reachFromStatus({ state: "up", reaches: "all IPv4; all IPv6", routes_source: "allowed-ips", no_dns: true })), {
+    summary: "",
+    routes: [],
+    warnings: [{ label: "no DNS", title: "No DNS server: hostnames fail" }],
+  });
   // A full tunnel with DNS: nothing to say.
   assert.equal(describeReach(reachFromStatus({ state: "up", reaches: "all IPv4; all IPv6", routes_source: "allowed-ips" })), null);
   assert.equal(reachFromStatus({ state: "down", no_dns: true }), undefined);
