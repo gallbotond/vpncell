@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gallbotond/vpncell/internal/backend"
@@ -353,40 +354,8 @@ func (d *Daemon) watchHostNetwork() {
 		default:
 		}
 	}
-	go func() {
-		ch := make(chan netlink.AddrUpdate, 64)
-		done := make(chan struct{})
-		if err := netlink.AddrSubscribe(ch, done); err != nil {
-			d.log.Warn("address watch unavailable", "err", err)
-			return
-		}
-		// Seed after subscribing so that no change falls between the two.
-		seen := addrSet{}
-		if addrs, err := netlink.AddrList(nil, netlink.FAMILY_ALL); err == nil {
-			for _, a := range addrs {
-				seen[addrKey(a.LinkIndex, a.IPNet)] = true
-			}
-		}
-		for u := range ch {
-			if seen.changed(u) {
-				notify()
-			}
-		}
-	}()
-	go func() {
-		ch := make(chan netlink.RouteUpdate, 64)
-		done := make(chan struct{})
-		if err := netlink.RouteSubscribe(ch, done); err != nil {
-			d.log.Warn("route watch unavailable", "err", err)
-			return
-		}
-		for u := range ch {
-			// Ignore our own tunnel devices' short host-side life.
-			if u.Table == 254 || u.Table == 0 {
-				notify()
-			}
-		}
-	}()
+	go keepSubscribed(d.ctx, d.log, "address", watchAddrs(d.log, notify))
+	go keepSubscribed(d.ctx, d.log, "route", watchRoutes(d.log, notify))
 	go d.watchSleep(notify)
 	for {
 		select {
@@ -415,6 +384,124 @@ func (d *Daemon) watchHostNetwork() {
 			}
 			d.backends[p.Backend].OnHostNetworkChange(d.ctx, p, rt.ifname)
 		}
+	}
+}
+
+// Netlink access of the host network watcher; variables so that tests can
+// replace them.
+var (
+	addrSubscribe = func(ch chan<- netlink.AddrUpdate, done <-chan struct{}, onErr func(error)) error {
+		return netlink.AddrSubscribeWithOptions(ch, done, netlink.AddrSubscribeOptions{ErrorCallback: onErr})
+	}
+	routeSubscribe = func(ch chan<- netlink.RouteUpdate, done <-chan struct{}, onErr func(error)) error {
+		return netlink.RouteSubscribeWithOptions(ch, done, netlink.RouteSubscribeOptions{ErrorCallback: onErr})
+	}
+	addrList = func() ([]netlink.Addr, error) { return netlink.AddrList(nil, netlink.FAMILY_ALL) }
+	// watchRetry is the first wait before subscribing again; it doubles
+	// up to watchRetryMax while subscriptions keep failing.
+	watchRetry    = 2 * time.Second
+	watchRetryMax = time.Minute
+)
+
+// watchError logs the netlink library's errors for a subscription, except
+// the failed receive that follows closing done on purpose (shutdown).
+func watchError(log *slog.Logger, what string, done <-chan struct{}) func(error) {
+	return func(err error) {
+		select {
+		case <-done:
+		default:
+			log.Warn(what+" watch error", "err", err)
+		}
+	}
+}
+
+// watchAddrs returns a keepSubscribed function that calls notify when a host
+// address appears or goes away.
+func watchAddrs(log *slog.Logger, notify func()) func(done <-chan struct{}, resumed bool) error {
+	return func(done <-chan struct{}, resumed bool) error {
+		ch := make(chan netlink.AddrUpdate, 64)
+		if err := addrSubscribe(ch, done, watchError(log, "address", done)); err != nil {
+			return err
+		}
+		// Seed after subscribing so that no change falls between the two.
+		seen := addrSet{}
+		if addrs, err := addrList(); err == nil {
+			for _, a := range addrs {
+				seen[addrKey(a.LinkIndex, a.IPNet)] = true
+			}
+		}
+		if resumed {
+			notify() // changes may have been missed while unsubscribed
+		}
+		for u := range ch {
+			if seen.changed(u) {
+				notify()
+			}
+		}
+		return nil
+	}
+}
+
+// watchRoutes returns a keepSubscribed function that calls notify on changes
+// to the host's main routing table.
+func watchRoutes(log *slog.Logger, notify func()) func(done <-chan struct{}, resumed bool) error {
+	return func(done <-chan struct{}, resumed bool) error {
+		ch := make(chan netlink.RouteUpdate, 64)
+		if err := routeSubscribe(ch, done, watchError(log, "route", done)); err != nil {
+			return err
+		}
+		if resumed {
+			notify()
+		}
+		for u := range ch {
+			// Ignore our own tunnel devices' short host-side life.
+			if u.Table == 254 || u.Table == 0 {
+				notify()
+			}
+		}
+		return nil
+	}
+}
+
+// keepSubscribed runs sub until ctx ends (issue #30). sub subscribes, then
+// reads updates until the channel closes; the netlink library closes it when
+// a receive fails (for example ENOBUFS after a burst of events). It returns
+// an error if subscribing failed. Either way keepSubscribed logs it, waits
+// and calls sub again with resumed set, so that sub can report a change
+// that may have been missed. done is closed when sub returns, which closes
+// the netlink socket.
+func keepSubscribed(ctx context.Context, log *slog.Logger, what string, sub func(done <-chan struct{}, resumed bool) error) {
+	wait := watchRetry
+	resumed := false
+	for ctx.Err() == nil {
+		done := make(chan struct{})
+		var once sync.Once
+		closeDone := func() { once.Do(func() { close(done) }) }
+		stop := context.AfterFunc(ctx, closeDone)
+		start := time.Now()
+		err := sub(done, resumed)
+		ran := time.Since(start)
+		stop()
+		closeDone()
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
+			log.Warn(what+" watch unavailable; trying again", "err", err, "in", wait)
+		} else {
+			log.Warn(what+" watch stopped; subscribing again", "in", wait)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+		if err == nil && ran > watchRetryMax {
+			wait = watchRetry // it had worked for a while
+		} else {
+			wait = min(2*wait, watchRetryMax)
+		}
+		resumed = true
 	}
 }
 

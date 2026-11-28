@@ -55,6 +55,7 @@ AF_PACKET in the test binary.
 | follow-up: tests accept the VM's new IPv4 exit | `fix/test-vm-ipv4-egress` | [#43](https://github.com/gallbotond/vpncell/pull/43) | merged |
 | #16 `import --replace` keeps settings, no stale secrets | `fix/import-replace-keeps-settings` | [#44](https://github.com/gallbotond/vpncell/pull/44) | merged |
 | #31 OpenVPN reconnect signal only when connected | `fix/openvpn-signal-only-connected` | [#45](https://github.com/gallbotond/vpncell/pull/45) | merged |
+| #30 host network watcher subscribes again | `fix/host-watch-resubscribe` | [#46](https://github.com/gallbotond/vpncell/pull/46) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -140,6 +141,23 @@ AF_PACKET in the test binary.
   `TestDaemonRestartShell`, `TestVMExitIP`, `TestReachVMOpenVPN`,
   `TestVMOpenVPNConfigAsDownloaded`, `TestFailClosedShell`, `TestPingVM`
   pass.
+
+### #30 (PR #46, package 0.9.19)
+
+- `keepSubscribed` runs the address and route subscriptions: library
+  errors are logged through `ErrorCallback`; a closed channel or failed
+  subscribe is logged and retried (2 s, doubling to 1 min); after a new
+  subscription the address set is seeded again and one `notify()` is sent
+  (the issue's proposal). `done` is closed after each subscription, so the
+  socket is released. Errors from closing it on shutdown are not logged
+  (0.9.18 logged `resource temporarily unavailable` on every stop; fixed
+  in 0.9.19). Also gofmt of `openvpn.go` from PR #45. DESIGN.md §12 item 38.
+- Tests: unit tests with fake subscriptions (`TestAddressWatchResubscribes`,
+  `TestRouteWatchResubscribes`, `TestWatchErrorQuietAfterDone`, run with
+  `-race`). Against 0.9.19: `TestUpDown`, `TestIsolationOverlap`,
+  `TestDaemonRestartShell`, `TestVMExitIP`, `TestReachVMOpenVPN`,
+  `TestSocksDaemonRestart`, `TestFailClosedShell`,
+  `TestRestartDeletedProfile` pass, and the journal had no watch lines.
 
 ## Issue run (2026-11-26)
 

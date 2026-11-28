@@ -45,10 +45,10 @@ func runDir(p string) string     { return brand.ProfileRunDir(p) }
 func ConfPath(p string) string   { return filepath.Join(runDir(p), "openvpn.conf") }
 func MgmtPath(p string) string   { return mgmtPath(p) }
 func PushedPath(p string) string { return filepath.Join(runDir(p), "pushed.json") }
+func UnitName(p string) string   { return brand.OpenVPNUnit + p + ".service" }
 
 // mgmtPath is a variable so that tests can point it at a fake socket.
 var mgmtPath = func(p string) string { return filepath.Join(runDir(p), "mgmt.sock") }
-func UnitName(p string) string   { return brand.OpenVPNUnit + p + ".service" }
 
 type Backend struct {
 	Log  *slog.Logger
