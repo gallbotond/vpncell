@@ -17,6 +17,12 @@ tests pass with the tarball and the snap Firefox, so a snap browser
 failure is now a regression, not a known failure. See "Issue run
 (2026-11-28)" and "Open items for the user".
 
+**Next: new backends.** OpenConnect (Cisco AnyConnect first) and then
+IPsec IKEv2 are planned (DECISIONS.md "Next backends", DESIGN.md §15.5 and
+§15.6). Open issues: #58–#60 (backends and interactive logins), #61–#62
+(lab servers), #63 (homelab VMs, the user's), #64 (optional cloud checks).
+Suggested order: #61, then #58, #59, then #62, #60.
+
 ## Steps
 
 | Step | Branch | PR | State |
@@ -51,6 +57,12 @@ refuses while the package is installed.
 Harness notes: the session runs under the `claude-desktop` AppArmor
 profile; confined `tcpdump` cannot be signalled from it, so captures use
 AF_PACKET in the test binary.
+
+## Next backends: planning (2026-11-28)
+
+| Issue(s) / PR | Branch | PR | State |
+|---|---|---|---|
+| test lab plan and shopping list for #58–#64 | `chore/backend-test-lab-plan` | [#66](https://github.com/gallbotond/vpncell/pull/66) | merged |
 
 ## Issue run (2026-11-28)
 
@@ -518,6 +530,11 @@ have the ping fix; new ones do.
    #16). I did not touch your profiles. While both are active, `vpncell
    status` now warns when NetworkManager's `sonrisa` and the vpncell
    profile use the same certificate (#19).
+10. **Homelab VMs for interop tests** (#63, DESIGN.md §15.5): `lab-idp`
+    (Keycloak; recommended), `cisco-asav` and `win-ikev2` (optional). Sizes
+    and sources are in the shopping list. Create them when convenient and
+    keep their addresses and test accounts outside the repository. The
+    gcloud vendor checks in #64 cost money; decide case by case.
 
 ## Final report
 
