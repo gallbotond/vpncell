@@ -3,11 +3,7 @@ package control
 import (
 	"encoding/json"
 	"fmt"
-	"unsafe"
 )
-
-func uintptrOf(b []uint32) uintptr   { return uintptr(unsafe.Pointer(&b[0])) }
-func uintptrOfU32(p *uint32) uintptr { return uintptr(unsafe.Pointer(p)) }
 
 // Version is the protocol version.
 const Version = 1

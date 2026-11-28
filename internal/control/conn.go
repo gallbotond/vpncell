@@ -1,8 +1,13 @@
 // Package control implements the control-socket protocol: 4-byte big-endian
-// length-prefixed JSON frames over a Unix stream socket. File descriptors
-// travel as SCM_RIGHTS on the sendmsg that carries the frame. Frames are read
-// with exact-length reads, so a recvmsg never crosses a frame boundary and the
-// descriptors are always attributed to the right frame.
+// length-prefixed JSON frames over a stream connection. File descriptors
+// travel with the bytes of a frame (on Linux as SCM_RIGHTS on the sendmsg
+// that carries the frame). Frames are read with exact-length reads, so a
+// read never crosses a frame boundary and the descriptors are always
+// attributed to the right frame.
+//
+// The protocol and the framing are portable. Descriptor passing and peer
+// credentials depend on the platform and sit behind Transport and Peer;
+// the Linux implementation is in transport_linux.go (DESIGN.md §11).
 package control
 
 import (
@@ -14,9 +19,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"syscall"
-
-	"golang.org/x/sys/unix"
 )
 
 // MaxFrame is the largest accepted frame.
@@ -25,14 +27,49 @@ const MaxFrame = 1 << 20
 // MaxFDs is the largest number of descriptors accepted with one frame.
 const MaxFDs = 8
 
-// Conn wraps a Unix stream connection.
+// ErrPlatformUnsupported is returned where the platform has no descriptor passing
+// or peer credentials.
+var ErrPlatformUnsupported = errors.New("not supported on this platform")
+
+// Transport is the byte stream under a Conn, plus descriptor passing.
+// Conn serialises calls: at most one WriteMsg or Write and one ReadMsg run
+// at a time.
+type Transport interface {
+	// WriteMsg writes a prefix of p and passes files with it. It returns
+	// how many bytes of p it wrote; Conn writes the rest with Write.
+	WriteMsg(p []byte, files []*os.File) (int, error)
+	// Write writes all of p, without files.
+	Write(p []byte) (int, error)
+	// ReadMsg reads up to len(p) bytes and returns the files that came
+	// with them. A FrameError means the descriptors of the frame are
+	// broken (too many, or malformed); the caller owns the returned files
+	// in every case.
+	ReadMsg(p []byte) (int, []*os.File, error)
+	Close() error
+}
+
+// FrameError is a descriptor error a Transport found while reading. It ends
+// the frame before the read error, if any, is looked at.
+type FrameError struct{ Err error }
+
+func (e *FrameError) Error() string { return e.Err.Error() }
+func (e *FrameError) Unwrap() error { return e.Err }
+
+var errTooManyFDs = errors.New("too many file descriptors")
+
+// Conn is one control connection.
 type Conn struct {
-	uc  *net.UnixConn
+	t   Transport
+	uc  *net.UnixConn // nil unless the Conn wraps a Unix socket
 	wmu sync.Mutex
 	rmu sync.Mutex
 }
 
-func NewConn(uc *net.UnixConn) *Conn { return &Conn{uc: uc} }
+// NewConn wraps a Unix stream connection in the platform's transport.
+func NewConn(uc *net.UnixConn) *Conn { return &Conn{t: newUnixTransport(uc), uc: uc} }
+
+// NewConnTransport wraps any transport (tests, other platforms).
+func NewConnTransport(t Transport) *Conn { return &Conn{t: t} }
 
 // Dial connects to the control socket.
 func Dial(path string) (*Conn, error) {
@@ -43,8 +80,9 @@ func Dial(path string) (*Conn, error) {
 	return NewConn(uc), nil
 }
 
+// Unix returns the underlying Unix connection, or nil.
 func (c *Conn) Unix() *net.UnixConn { return c.uc }
-func (c *Conn) Close() error        { return c.uc.Close() }
+func (c *Conn) Close() error        { return c.t.Close() }
 
 // Send writes one frame with optional descriptors.
 func (c *Conn) Send(v any, files ...*os.File) error {
@@ -58,25 +96,14 @@ func (c *Conn) Send(v any, files ...*os.File) error {
 	buf := make([]byte, 4+len(body))
 	binary.BigEndian.PutUint32(buf, uint32(len(body)))
 	copy(buf[4:], body)
-	var oob []byte
-	if len(files) > 0 {
-		fds := make([]int, len(files))
-		for i, f := range files {
-			fds[i] = int(f.Fd())
-		}
-		oob = unix.UnixRights(fds...)
-	}
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	n, oobn, err := c.uc.WriteMsgUnix(buf, oob, nil)
+	n, err := c.t.WriteMsg(buf, files)
 	if err != nil {
 		return err
 	}
-	if oobn != len(oob) {
-		return fmt.Errorf("short oob write")
-	}
 	if n < len(buf) {
-		if _, err := c.uc.Write(buf[n:]); err != nil {
+		if _, err := c.t.Write(buf[n:]); err != nil {
 			return err
 		}
 	}
@@ -108,24 +135,16 @@ func (c *Conn) Recv() (json.RawMessage, []*os.File, error) {
 }
 
 func (c *Conn) readFull(p []byte, files *[]*os.File) error {
-	oob := make([]byte, unix.CmsgSpace(MaxFDs*4))
 	off := 0
 	for off < len(p) {
-		n, oobn, flags, _, err := c.uc.ReadMsgUnix(p[off:], oob)
-		if oobn > 0 {
-			got, perr := parseRights(oob[:oobn])
-			for _, fd := range got {
-				*files = append(*files, os.NewFile(uintptr(fd), "scm"))
-			}
-			if perr != nil {
-				return perr
-			}
-		}
-		if flags&unix.MSG_CTRUNC != 0 {
-			return fmt.Errorf("too many file descriptors")
+		n, got, err := c.t.ReadMsg(p[off:])
+		*files = append(*files, got...)
+		var fe *FrameError
+		if errors.As(err, &fe) {
+			return fe.Err
 		}
 		if len(*files) > MaxFDs {
-			return fmt.Errorf("too many file descriptors")
+			return errTooManyFDs
 		}
 		off += n
 		if err != nil {
@@ -142,28 +161,6 @@ func (c *Conn) readFull(p []byte, files *[]*os.File) error {
 		}
 	}
 	return nil
-}
-
-func parseRights(oob []byte) ([]int, error) {
-	msgs, err := unix.ParseSocketControlMessage(oob)
-	if err != nil {
-		return nil, err
-	}
-	var out []int
-	for _, m := range msgs {
-		if m.Header.Level != unix.SOL_SOCKET || m.Header.Type != unix.SCM_RIGHTS {
-			continue
-		}
-		fds, err := unix.ParseUnixRights(&m)
-		if err != nil {
-			return out, err
-		}
-		for _, fd := range fds {
-			unix.CloseOnExec(fd)
-		}
-		out = append(out, fds...)
-	}
-	return out, nil
 }
 
 func closeAll(fs []*os.File) {
@@ -194,46 +191,4 @@ type PeerCred struct {
 	UID    uint32
 	GID    uint32
 	Groups []uint32
-}
-
-// Peer returns SO_PEERCRED and SO_PEERGROUPS of the connection.
-func Peer(uc *net.UnixConn) (*PeerCred, error) {
-	raw, err := uc.SyscallConn()
-	if err != nil {
-		return nil, err
-	}
-	var cred *unix.Ucred
-	var groups []uint32
-	var serr error
-	err = raw.Control(func(fd uintptr) {
-		cred, serr = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
-		if serr != nil {
-			return
-		}
-		groups, serr = getPeerGroups(int(fd))
-	})
-	if err != nil {
-		return nil, err
-	}
-	if serr != nil {
-		return nil, serr
-	}
-	return &PeerCred{PID: cred.Pid, UID: cred.Uid, GID: cred.Gid, Groups: groups}, nil
-}
-
-func getPeerGroups(fd int) ([]uint32, error) {
-	buf := make([]uint32, 64)
-	for {
-		l := uint32(len(buf) * 4)
-		_, _, e := syscall.Syscall6(syscall.SYS_GETSOCKOPT, uintptr(fd), unix.SOL_SOCKET, unix.SO_PEERGROUPS,
-			uintptrOf(buf), uintptrOfU32(&l), 0)
-		if e == unix.ERANGE {
-			buf = make([]uint32, l/4+1)
-			continue
-		}
-		if e != 0 {
-			return nil, e
-		}
-		return buf[:l/4], nil
-	}
 }
