@@ -357,15 +357,16 @@ func (d *Daemon) watchHostNetwork() {
 	go func() {
 		ch := make(chan netlink.AddrUpdate, 64)
 		done := make(chan struct{})
+		if err := netlink.AddrSubscribe(ch, done); err != nil {
+			d.log.Warn("address watch unavailable", "err", err)
+			return
+		}
+		// Seed after subscribing so that no change falls between the two.
 		seen := addrSet{}
 		if addrs, err := netlink.AddrList(nil, netlink.FAMILY_ALL); err == nil {
 			for _, a := range addrs {
 				seen[addrKey(a.LinkIndex, a.IPNet)] = true
 			}
-		}
-		if err := netlink.AddrSubscribe(ch, done); err != nil {
-			d.log.Warn("address watch unavailable", "err", err)
-			return
 		}
 		for u := range ch {
 			if seen.changed(u) {
