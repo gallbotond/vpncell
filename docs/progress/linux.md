@@ -5,6 +5,14 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
+**Cross-platform groundwork of 2026-11-28 done** (#67, #71, #68; PRs
+#74–#79, see "Cross-platform groundwork"). CI runs `make build`, `make
+test` and a Windows/macOS cross-compile check on every PR; `main` requires
+them. Progress is tracked per platform (`docs/progress/`). The shared
+packages build for Windows and macOS (DESIGN.md §3). Package 0.9.24 is
+installed; its full integration suite passes. Next for Windows and macOS:
+the design, #69 (needs the user's approval). Linux continues below.
+
 **Issue run of 2026-11-28 done.** The open PRs #29 and #33 were merged,
 and every open issue was fixed and merged: #16, #31, #30, #19, #18, #36,
 #37, #34, #35, #38, #39, #40 (PRs #44–#55). Follow-ups found on the way:
@@ -70,7 +78,7 @@ that order, before the Windows and macOS design (#69).
 | #71 progress per platform (`docs/progress/`), AGENTS.md per platform, labels | `chore/progress-split` | [#76](https://github.com/gallbotond/vpncell/pull/76) | merged |
 | #68a portable `profile` (`statUID` owner known/unknown), `importer`, `backend`; package 0.9.22, itest pass | `chore/portable-profile` | [#77](https://github.com/gallbotond/vpncell/pull/77) | merged |
 | #68b portable `control` (Transport interface; SCM_RIGHTS and peer credentials in `_linux.go`), `client`, `cmd/vpncell`, `cmd/vpncell-native`; package 0.9.23, itest pass | `chore/portable-control` | [#78](https://github.com/gallbotond/vpncell/pull/78) | merged |
-| #68c portable `socks` (`Dialer` injected; netns parts in `socks_linux.go`); #68d needs no split (no portable package imports `platform` or `session`); package 0.9.24 | `chore/portable-socks` | [#79](https://github.com/gallbotond/vpncell/pull/79) | merged |
+| #68c portable `socks` (`Dialer` injected; netns parts in `socks_linux.go`); #68d needs no split (no portable package imports `platform` or `session`); package 0.9.24, itest pass | `chore/portable-socks` | [#79](https://github.com/gallbotond/vpncell/pull/79) | merged |
 
 ## Next backends: planning (2026-11-28)
 
