@@ -814,6 +814,14 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
 41. **Popup exit IP** (#36). The exit IP column is gone: the IP shows under
     the state pill when the daemon probed one (`[status] exit_ip_url`);
     a connected profile without it has a tooltip naming the setting.
+42. **Toolbar badge per tab** (#37). The badge is set per tab from the
+    tab's container (`badgeFor` in `view.ts`, built on the proxy
+    decision): none when direct, the profile initial in green/amber/grey
+    for up/connecting/down, red `!` when blocked or failed. It is updated
+    on `tabs.onActivated`, `onUpdated` (Firefox resets it on navigation),
+    `onCreated` and every state change (coalesced to one pass over all
+    tabs per 100 ms). The global badge `!` is gone; the default title
+    still lists blocked profiles, and notifications are unchanged.
 
 ## 13. Lifecycle
 

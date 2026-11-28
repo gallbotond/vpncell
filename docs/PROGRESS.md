@@ -58,6 +58,7 @@ AF_PACKET in the test binary.
 | #30 host network watcher subscribes again | `fix/host-watch-resubscribe` | [#46](https://github.com/gallbotond/vpncell/pull/46) | merged |
 | #19 warn on an identity used by an active NetworkManager VPN | `feat/nm-identity-warning` | [#47](https://github.com/gallbotond/vpncell/pull/47) | merged |
 | #36 popup: exit IP under the state | `feat/popup-exit-ip` | [#49](https://github.com/gallbotond/vpncell/pull/49) | merged |
+| #37 toolbar badge per tab | `feat/toolbar-badge` | [#50](https://github.com/gallbotond/vpncell/pull/50) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -201,6 +202,21 @@ AF_PACKET in the test binary.
   optional tooltip). New `extension/src/view.ts` for pure popup helpers.
 - Tests: `exitIPView` unit test; `make test`, extension build; checked in
   the tarball Firefox (no column; no profile here sets `exit_ip_url`).
+
+### #37 (PR #50, extension only)
+
+- Per-tab toolbar badge from the tab's container (`badgeFor`): none for
+  direct tabs, profile initial in green (up), amber (connecting), grey
+  (down, comes up on use), red `!` when blocked or failed; tooltip with
+  profile and state. Updated on tab activation, update (navigation resets
+  it), creation and state changes. The global `!` badge is replaced by
+  the per-tab one (the issue's colours; grey for down, amber for
+  connecting). DESIGN.md §12 item 42, README "Firefox".
+- Tests: `badgeFor` unit test (direct, private, up, down, connecting,
+  unknown, failed, manual down, daemon down). Tarball Firefox: tabs on
+  `about:blank` in a container mapped to `demo-wireguard` showed a green
+  `D`, one mapped to an unknown profile a red `!`, direct tabs none (read
+  with `browserAction.getBadgeText`).
 
 ## Issue run (2026-11-26)
 
