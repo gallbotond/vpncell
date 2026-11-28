@@ -56,6 +56,7 @@ AF_PACKET in the test binary.
 | #16 `import --replace` keeps settings, no stale secrets | `fix/import-replace-keeps-settings` | [#44](https://github.com/gallbotond/vpncell/pull/44) | merged |
 | #31 OpenVPN reconnect signal only when connected | `fix/openvpn-signal-only-connected` | [#45](https://github.com/gallbotond/vpncell/pull/45) | merged |
 | #30 host network watcher subscribes again | `fix/host-watch-resubscribe` | [#46](https://github.com/gallbotond/vpncell/pull/46) | merged |
+| #19 warn on an identity used by an active NetworkManager VPN | `feat/nm-identity-warning` | [#47](https://github.com/gallbotond/vpncell/pull/47) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -158,6 +159,38 @@ AF_PACKET in the test binary.
   `TestDaemonRestartShell`, `TestVMExitIP`, `TestReachVMOpenVPN`,
   `TestSocksDaemonRestart`, `TestFailClosedShell`,
   `TestRestartDeletedProfile` pass, and the journal had no watch lines.
+
+### #19 (PR #47, package 0.9.20)
+
+- New `internal/conflict`: active NM VPN/WireGuard connections over D-Bus
+  (read-only), host WireGuard devices (wgctrl). Match on the client
+  certificate's SHA-256 (CN: weaker warning) and on the WireGuard public
+  key (derived; private keys never kept or logged). Warnings in `up`,
+  `import` and `status` (not while down); the CLI wraps them. Without
+  NetworkManager the check is skipped. README "The same VPN in
+  NetworkManager", DESIGN.md §12 item 39. The popup does not show them
+  (not asked in the issue).
+- Choice: match on the certificate, CN only as a weaker hint (as the
+  issue proposed). Other `openvpn` processes on the host are not checked
+  (optional in the issue).
+- Tests: unit tests (`TestOpenVPNIdentity`, `TestWireGuardIdentity`,
+  `TestCheck`, `TestReadRegular` incl. a FIFO, `TestActiveNM` and
+  `TestActiveNMAbsent` against a fake NetworkManager on a private
+  `dbus-daemon`; certificates and keys generated at runtime). Integration:
+  `TestNMActiveConnectionsReadable` (real NetworkManager, compared with
+  nmcli), `TestNMIdentityInactiveNoWarning` (an inactive NM connection
+  `t-nmcheck` with `t-ovpn1`'s certificate gives no warning; created with
+  autoconnect off, never activated, deleted afterwards). A positive test
+  with the real NetworkManager would need an active connection (not
+  allowed).
+- Found on the way: `TestImportReplace` (PR #44) brought up `t-repl` with
+  `t-ovpn1`'s certificate on the same lab server, which dropped `t-ovpn1`
+  (`Inactivity timeout` 30 s later) and broke `TestDaemonRestartShell`
+  after it. The test now takes `t-ovpn1` down first.
+- Against 0.9.20: `TestNM*`, `TestUpDown`, `TestImportReplace`,
+  `TestImportSafetyOpenVPN`, `TestImportSafetyWireGuard`, `TestVMExitIP`,
+  `TestReachVMOpenVPN`, `TestNoSecretsInJournal`,
+  `TestDaemonRestartShell` pass.
 
 ## Issue run (2026-11-26)
 

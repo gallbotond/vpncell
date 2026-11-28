@@ -463,6 +463,29 @@ for the connection; if the tunnel is not connected by then, it prints the
 reason known so far and the `journalctl` command, and exits with status 3.
 The profile keeps trying in the background.
 
+### The same VPN in NetworkManager
+
+Two clients with one identity knock each other off: an OpenVPN server
+without `duplicate-cn` drops the older connection when the same client
+certificate connects again, and a WireGuard server's peer endpoint flips
+between two clients with the same key. Both show up as random drops.
+
+`vpncell up`, `vpncell import` and `vpncell status` (while the profile is
+not down) warn when an **active** NetworkManager OpenVPN connection uses
+the same client certificate (or one with the same subject CN, a weaker
+hint), or when a WireGuard interface on the host uses the same key:
+
+```
+warning: NetworkManager connection "work" (active) uses the same client
+         certificate as profile work. The server will likely drop one of
+         them. Disconnect it with: nmcli connection down work
+```
+
+It is only a warning: vpncell never changes or stops the other
+connection. The daemon reads NetworkManager's active connections over
+D-Bus (read-only) at most every 15 s; without NetworkManager the check is
+skipped. Private keys are only used to derive the WireGuard public key.
+
 ### I can't reach the internet (or some hosts) through a profile
 
 A profile sends **all** its traffic into its tunnel (`[routing] routes`,

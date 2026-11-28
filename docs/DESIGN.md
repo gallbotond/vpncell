@@ -798,6 +798,18 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     subscription the address set is seeded again and one change is
     reported, since changes may have been missed. Errors caused by closing
     the subscription on shutdown are not logged.
+39. **Identity conflicts with NetworkManager** (#19). `internal/conflict`
+    reads NetworkManager's `ActiveConnections` over the system bus
+    (`GetSettings` of each active VPN connection; read-only, 3 s timeout,
+    cached 15 s) and the host namespace's WireGuard devices (wgctrl,
+    vpncell's own `vpnwg*` excluded). It compares the SHA-256 of the
+    profile's client certificate (DER) with each active NM OpenVPN
+    connection's `cert` file (same subject CN: weaker warning), and the
+    profile's WireGuard public key with the host devices' keys. Warnings
+    are in `status` (`warnings`, not while down), in `up`'s reply and in
+    the import report. Paths from NetworkManager are opened non-blocking
+    and read only if they are regular files of at most 1 MiB, since any
+    local user can create connections; key files are never read.
 
 ## 13. Lifecycle
 

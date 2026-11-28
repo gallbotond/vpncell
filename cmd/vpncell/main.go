@@ -193,6 +193,7 @@ func cmdStatus(args []string) error {
 		fmt.Printf("%s (%s, autostart %s)\n", s.Name, s.Backend, s.Autostart)
 		fmt.Printf("  state:          %s\n", stateLine(s))
 		printReason(os.Stdout, s, "  ")
+		printWarnings(os.Stdout, s.Warnings, "  ")
 		if s.Interface != "" {
 			fmt.Printf("  interface:      %s %s\n", s.Interface, strings.Join(s.Addresses, " "))
 		}
@@ -219,6 +220,19 @@ func cmdStatus(args []string) error {
 	return nil
 }
 
+// printWarnings prints identity-conflict warnings (issue #19), wrapped.
+func printWarnings(w *os.File, ws []string, indent string) {
+	for _, x := range ws {
+		for i, l := range wrap(x, 66) {
+			label := "warning: "
+			if i > 0 {
+				label = "         "
+			}
+			fmt.Fprintf(w, "%s%s%s\n", indent, label, l)
+		}
+	}
+}
+
 func cmdUpDown(op string, args []string) error {
 	fs := flag.NewFlagSet(op, flag.ContinueOnError)
 	force := fs.Bool("force", false, "take the tunnel down even with active sessions (they lose network)")
@@ -235,6 +249,10 @@ func cmdUpDown(op string, args []string) error {
 	r, err := client.Call(control.Request{Type: op, Profile: fs.Arg(0), Force: *force, Kill: *kill})
 	if err != nil {
 		return err
+	}
+	if op == "up" && len(r.Status) == 1 {
+		// Another connection with the same identity (issue #19).
+		printWarnings(os.Stderr, r.Status[0].Warnings, "")
 	}
 	if op == "up" && len(r.Status) == 1 && r.Status[0].Backend == "openvpn" && r.Status[0].State != "up" {
 		// The daemon waited 20 s for OpenVPN to connect, without success.
