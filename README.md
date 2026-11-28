@@ -15,8 +15,8 @@ Profiles may use the same private address ranges and internal hostnames; they
 never see each other, the host's `localhost` or the LAN. If a tunnel is down,
 traffic fails instead of falling back to the normal connection.
 
-Design: [DESIGN.md](DESIGN.md). Build history and open items:
-[PROGRESS.md](PROGRESS.md).
+Design: [docs/DESIGN.md](docs/DESIGN.md). Build history and open items:
+[docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Install (Ubuntu 26.04 LTS)
 

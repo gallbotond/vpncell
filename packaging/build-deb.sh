@@ -23,7 +23,7 @@ install -D -m 0644 "$repo/packaging/vpncell.toml" "$root/etc/vpncell/vpncell.tom
 install -d -m 0755 "$root/etc/vpncell/profiles.d"
 install -d -m 0700 "$root/etc/vpncell/secrets"
 install -D -m 0644 "$repo/README.md" "$root/usr/share/doc/vpncell/README.md"
-install -D -m 0644 "$repo/DESIGN.md" "$root/usr/share/doc/vpncell/DESIGN.md"
+install -D -m 0644 "$repo/docs/DESIGN.md" "$root/usr/share/doc/vpncell/DESIGN.md"
 install -d "$root/DEBIAN"
 size=$(du -sk "$root" | cut -f1)
 cat > "$root/DEBIAN/control" <<EOF
