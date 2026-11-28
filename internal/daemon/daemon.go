@@ -84,6 +84,20 @@ type rtProfile struct {
 	removed bool
 }
 
+// noteRoutes records the tunnel routes in st and reports whether they differ
+// from the last ones recorded for this connection. Call with mu held.
+func (r *rtProfile) noteRoutes(st backend.Status) bool {
+	if st.RoutesSource == "" {
+		return false
+	}
+	k := fmt.Sprint(st.RoutesSource, st.Routes, st.RedirectGateway)
+	if k == r.routesKey {
+		return false
+	}
+	r.routesKey = k
+	return true
+}
+
 func (r *rtProfile) getState() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -98,8 +98,15 @@ func TestReachVMOpenVPN(t *testing.T) {
 	if !useVM {
 		t.Skip("VPNCELL_TEST_VM=0")
 	}
-	since := time.Now().Add(-time.Second).Format("2006-01-02 15:04:05")
+	// Up first, so that the down/up below is a reconnect with the same
+	// routes: each connection logs its routes, not only a change.
+	ensureUp(t, "vm-ovpn")
+	waitFor(t, 30*time.Second, "vm-ovpn up", func() bool { return statusOf(t, "vm-ovpn").State == "up" })
 	root(t, "down", "--kill", "vm-ovpn")
+	// journalctl --since has whole seconds: start the window after
+	// everything the first connection logged.
+	time.Sleep(1100 * time.Millisecond)
+	since := time.Now().Format("2006-01-02 15:04:05")
 	ensureUp(t, "vm-ovpn")
 	waitFor(t, 30*time.Second, "vm-ovpn up", func() bool { return statusOf(t, "vm-ovpn").State == "up" })
 	st := statusOf(t, "vm-ovpn")
