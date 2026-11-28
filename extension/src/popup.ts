@@ -1,6 +1,7 @@
 // Popup: per container its profile, state and exit IP; change the mapping;
 // bring profiles up or down.
 import { describeProblem, describeReach, ReachView, TunnelProblem } from "./decide.js";
+import { exitIPView } from "./view.js";
 interface PopupState {
   containers: { id: string; name: string; color: string; icon: string }[];
   mapping: Record<string, string>;
@@ -80,7 +81,14 @@ async function render(): Promise<void> {
     const blocked = mapped ? s.problems[mapped] : undefined;
     const state = el("td", { class: "state" });
     if (!mapped) state.append(el("span", { class: "muted" }, "direct"));
-    else state.append(pill(p?.state ?? "unknown", blocked));
+    else {
+      const pl = pill(p?.state ?? "unknown", blocked);
+      // Exit IP under the pill, only when the daemon probed one (issue #36).
+      const ip = blocked ? null : exitIPView(p);
+      if (ip?.title) pl.title = ip.title;
+      state.append(pl);
+      if (ip?.text) state.append(el("div", { class: "exitip" }, ip.text));
+    }
     if (blocked) state.append(el("div", { class: "why" }, blocked));
     // Why the tunnel is not connected (issue #14).
     const why = mapped && !blocked ? describeProblem(p?.problem) : null;
@@ -106,7 +114,6 @@ async function render(): Promise<void> {
     const pErr = mapped ? errors.get(`p:${mapped}`) : undefined;
     if (pErr && pErr.state !== p?.state) errors.delete(`p:${mapped}`); // state moved on, e.g. autostart
     for (const e of [errors.get(`p:${mapped}`), errors.get(`c:${c.id}`)]) if (e) state.append(el("div", { class: "why" }, e.msg));
-    const ip = el("td", { class: "exitip" }, p?.exitIP ?? "");
     const actions = el("td");
     if (mapped && p) {
       const up = p.state === "down";
@@ -124,7 +131,7 @@ async function render(): Promise<void> {
     }
     const tdSel = el("td");
     tdSel.append(sel);
-    tr.append(name, tdSel, state, ip, actions);
+    tr.append(name, tdSel, state, actions);
     table.append(tr);
   }
   root.append(table);

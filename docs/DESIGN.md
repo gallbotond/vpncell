@@ -417,7 +417,8 @@ persistent background page**, as designed.
 - Cache refresh: on daemon events (profile up/down, credentials changed) pushed
   through the native host, and every 60 s as a fallback.
 - Popup: per container its profile, state (up/connecting/down/failed), exit IP
-  if known, a profile selector, and up/down buttons when the user is allowed.
+  if known (under the state, no column of its own; §12 item 41), a profile
+  selector, and up/down buttons when the user is allowed.
 
 ### 9.3 Native messaging
 
@@ -810,6 +811,9 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     the import report. Paths from NetworkManager are opened non-blocking
     and read only if they are regular files of at most 1 MiB, since any
     local user can create connections; key files are never read.
+41. **Popup exit IP** (#36). The exit IP column is gone: the IP shows under
+    the state pill when the daemon probed one (`[status] exit_ip_url`);
+    a connected profile without it has a tooltip naming the setting.
 
 ## 13. Lifecycle
 
