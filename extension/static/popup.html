@@ -29,7 +29,9 @@
   body { font: 13px system-ui, sans-serif; margin: 8px; min-width: 420px; background: var(--bg); color: var(--fg); }
   table { border-collapse: collapse; width: 100%; }
   td { padding: 4px 6px; border-bottom: 1px solid var(--line); }
-  td.name { padding-left: 8px; }
+  td.name { padding-left: 4px; white-space: nowrap; }
+  .cicon { display: inline-block; width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; mask-position: center; mask-size: contain; mask-repeat: no-repeat; }
+  .cicon.dot { width: 10px; height: 10px; border-radius: 50%; margin: 0 9px 0 3px; vertical-align: 0; }
   .ok { color: var(--ok); } .bad { color: var(--bad); font-weight: bold; }
   #thistab { padding: 6px 8px; border-radius: 6px; background: var(--accent-bg); margin-bottom: 4px; }
   #thistab.direct { background: var(--plain-bg); color: var(--muted); }

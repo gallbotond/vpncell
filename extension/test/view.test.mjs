@@ -97,3 +97,15 @@ test("current tab's container first (issue #35)", async () => {
   assert.equal(thisTab({ cookieStoreId: "firefox-container-2", incognito: true }, cs, mapping).kind, "direct");
   assert.equal(thisTab(undefined, cs, mapping).kind, "direct");
 });
+
+test("container icons (issue #39)", async () => {
+  const { containerIcon } = await import("../build/view.js");
+  assert.deepEqual(containerIcon("resource://usercontext-content/briefcase.svg", "#f89c24"), {
+    mask: 'url("resource://usercontext-content/briefcase.svg")',
+    color: "#f89c24",
+  });
+  assert.equal(containerIcon("resource://usercontext-content/cart.svg", "red; x: y").color, "currentColor");
+  for (const bad of [undefined, "", "https://example.com/x.svg", 'resource://usercontext-content/a.svg") ; x', "moz-extension://x/icon.svg"]) {
+    assert.equal(containerIcon(bad, "#000"), null, String(bad));
+  }
+});

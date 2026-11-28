@@ -839,6 +839,12 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     `color-scheme: light dark` makes form controls follow, and `body`
     sets its own background and text colour. A unit test keeps colours
     out of the rules.
+46. **Container icons** (#39). The popup shows each container's icon
+    (`ContextualIdentity.iconUrl`, `resource://usercontext-content/…`,
+    which extension pages can load) tinted with `colorCode`. The icons use
+    `context-fill`, which an `<img>` in an extension page does not get
+    (it renders black), so the SVG is a CSS mask over the colour. Only
+    Firefox's own icon URLs are used; otherwise a colour dot.
 
 ## 13. Lifecycle
 

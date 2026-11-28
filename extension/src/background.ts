@@ -351,7 +351,7 @@ browser.runtime.onMessage.addListener(async (msg: any, sender) => {
       const prob: Record<string, string> = {};
       for (const [k, v] of problems()) prob[k] = describe(v);
       return {
-        containers: containers.map((c) => ({ id: c.cookieStoreId, name: c.name, color: c.colorCode, icon: c.icon })),
+        containers: containers.map((c) => ({ id: c.cookieStoreId, name: c.name, color: c.colorCode, icon: c.icon, iconUrl: c.iconUrl })),
         mapping: st.mapping,
         profiles,
         daemonUp: st.daemonUp,

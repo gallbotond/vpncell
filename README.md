@@ -328,7 +328,7 @@ names are resolved inside the profile (`proxyDNS`).
   reaches, its Up/Down button and the containers that use it; the exit IP
   shows under the state if the profile sets `[status] exit_ip_url`
   (otherwise the state's tooltip says so). **Containers**: each container
-  with its profile dropdown. The popup follows Firefox's light or dark
+  (with its icon and colour, as in Firefox) and its profile dropdown. The popup follows Firefox's light or dark
   theme.
 - The **toolbar badge** shows the current tab's tunnel: none for a direct
   tab, the profile's initial in green (up), amber (connecting) or grey

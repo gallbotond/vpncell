@@ -94,3 +94,12 @@ export function thisTab(
   if (!c) return { kind: "direct", text: "This tab connects directly (not in a container)" };
   return { kind: "container", container: c.name, profile: mapping[c.id] };
 }
+
+// A container icon (issue #39): Firefox's own SVG, used as a CSS mask over
+// the container colour (the icons use context-fill, which an <img> in an
+// extension page does not get). Only Firefox's icon URLs are used.
+export function containerIcon(iconUrl: string | undefined, color: string | undefined): { mask: string; color: string } | null {
+  if (!iconUrl || !/^resource:\/\/usercontext-content\/[a-z0-9_-]+\.svg$/.test(iconUrl)) return null;
+  const c = color && /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : "currentColor";
+  return { mask: `url("${iconUrl}")`, color: c };
+}
