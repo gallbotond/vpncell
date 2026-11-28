@@ -18,6 +18,7 @@ import {
   reachFromStatus,
   ReachView,
 } from "./decide.js";
+import { badgeFor, blockedReason } from "./view.js";
 
 const st: State = { ready: false, mapping: {}, profiles: {}, daemonUp: false, daemonDownSince: Date.now() };
 
@@ -174,29 +175,48 @@ function problems(): Map<string, string> {
   return out;
 }
 
-function describe(reason: string): string {
-  switch (reason) {
-    case "daemon-down":
-      return "vpncelld is not reachable";
-    case "unknown-profile":
-      return "profile unknown or not allowed";
-    case "profile-down":
-      return "profile is down";
-    case "no-credentials":
-      return "no proxy credentials";
-    case "not-ready":
-      return "starting";
-  }
-  return reason;
+const describe = blockedReason;
+
+// The toolbar badge is per tab (issue #37): it shows the tunnel state of
+// the tab's own container (badgeFor). The default title lists blocked
+// profiles; a tab's title starts with its own line.
+let defaultTitle = PRODUCT;
+
+function setTabBadge(tab: browser.tabs.Tab): void {
+  if (tab.id === undefined || tab.id === browser.tabs.TAB_ID_NONE) return;
+  const b = badgeFor({ cookieStoreId: tab.cookieStoreId, incognito: tab.incognito }, st, Date.now());
+  const tabId = tab.id;
+  browser.browserAction.setBadgeText({ text: b.text, tabId }).catch(() => {});
+  if (b.text) browser.browserAction.setBadgeBackgroundColor({ color: b.color, tabId }).catch(() => {});
+  const title = b.title ? `${PRODUCT}: ${b.title}` + (defaultTitle !== PRODUCT ? `\n${defaultTitle}` : "") : defaultTitle;
+  browser.browserAction.setTitle({ title, tabId }).catch(() => {});
 }
+
+let tabBadgeTimer: number | null = null;
+// Coalesces updates: blocked requests call updateBadge for each request.
+function scheduleTabBadges(): void {
+  if (tabBadgeTimer !== null) return;
+  tabBadgeTimer = setTimeout(async () => {
+    tabBadgeTimer = null;
+    try {
+      for (const t of await browser.tabs.query({})) setTabBadge(t);
+    } catch {}
+  }, 100) as unknown as number;
+}
+
+browser.tabs.onActivated.addListener(({ tabId }) => {
+  browser.tabs.get(tabId).then(setTabBadge, () => {});
+});
+// Firefox resets a tab's badge when it navigates.
+browser.tabs.onUpdated.addListener((_id, _change, tab) => setTabBadge(tab));
+browser.tabs.onCreated.addListener((tab) => setTabBadge(tab));
 
 function updateBadge(): void {
   const p = problems();
-  const text = p.size > 0 ? "!" : "";
-  browser.browserAction.setBadgeText({ text }).catch(() => {});
-  browser.browserAction.setBadgeBackgroundColor({ color: "#d70022" }).catch(() => {});
   const lines = [...p].map(([prof, why]) => `${prof}: ${describe(why)}`);
-  browser.browserAction.setTitle({ title: lines.length ? `${PRODUCT}: blocked\n${lines.join("\n")}` : PRODUCT }).catch(() => {});
+  defaultTitle = lines.length ? `${PRODUCT}: blocked\n${lines.join("\n")}` : PRODUCT;
+  browser.browserAction.setTitle({ title: defaultTitle }).catch(() => {});
+  scheduleTabBadges();
   for (const [prof, why] of p) {
     if (notified.has(prof)) continue;
     notified.add(prof);
