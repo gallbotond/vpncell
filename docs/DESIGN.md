@@ -842,6 +842,10 @@ that fail closed holds without it.
 - Internet egress: **IPv6 only**. The VM has no public IPv4 and no Cloud NAT;
   `curl -4 ifconfig.me` times out on the VM. Docker NAT66s the service
   networks, and wg-easy NAT66s its clients.
+  **Update (2026-11-28):** the VM now has IPv4 egress too (`curl -4
+  ifconfig.me` on the VM answers). Firefox and SOCKS clients may exit over
+  IPv4; the tests accept the VM's IPv4 exit address, learned through
+  `vm-wg`'s tunnel and checked to differ from the host's.
 - Admin UIs work from this host over the tailnet (`http://free-vm:51821`,
   `http://free-vm:18080`); the wg-easy API accepts HTTP basic auth and the
   openvpn-ui login works. Tests read the credentials from `.env` at runtime.

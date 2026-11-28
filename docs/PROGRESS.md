@@ -52,6 +52,7 @@ AF_PACKET in the test binary.
 | IPv6 lifetime refreshes in the host network watcher | `fix/ignore-addr-lifetime-refresh` | [#29](https://github.com/gallbotond/vpncell/pull/29) | merged |
 | follow-up: `tunnel routes` logged on every connection | `fix/routes-log-per-connection` | [#42](https://github.com/gallbotond/vpncell/pull/42) | merged |
 | popup compact and stable | `feat/popup-compact-ui` | [#33](https://github.com/gallbotond/vpncell/pull/33) | merged |
+| follow-up: tests accept the VM's new IPv4 exit | `fix/test-vm-ipv4-egress` | [#43](https://github.com/gallbotond/vpncell/pull/43) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -93,6 +94,15 @@ AF_PACKET in the test binary.
   build. Checked in the tarball Firefox (headless, temporary profile, real
   daemon): mapped rows show `up` pills, `sonrisa` shows "only 44 IPv4
   networks" collapsed with a "DNS unreachable" chip, direct rows dimmed.
+
+### VM IPv4 egress in the tests (PR #43, test only)
+
+- The test VM now has IPv4 egress, so Firefox and SOCKS clients in
+  `TestBrowserContainers` and `TestVMSocks` saw the VM's IPv4 address
+  instead of its IPv6 endpoint. `isVMExit` accepts both; the IPv4 address
+  is learned with `curl -4` through `vm-wg` and must differ from the host's
+  own IPv4 exit. DESIGN.md §15.1 notes the change. Against 0.9.15:
+  `TestBrowserContainers/tarball`, `TestVMSocks`, `TestVMExitIP` pass.
 
 ## Issue run (2026-11-26)
 

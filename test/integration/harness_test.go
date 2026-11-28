@@ -68,6 +68,41 @@ func vmEndpointAddr(wgConf string) (string, error) {
 	return "", fmt.Errorf("%s: no Endpoint (set VPNCELL_TEST_VM_ENDPOINT)", wgConf)
 }
 
+// The VM's exit addresses are its IPv6 endpoint and, since the VM got IPv4
+// egress (2026-11-28), the IPv4 address its traffic leaves from. Programs
+// that resolve names themselves (Firefox, SOCKS clients) may use either;
+// both prove that the traffic left through the VM.
+var (
+	vmExitOnce sync.Once
+	vmExit4    string
+)
+
+// isVMExit reports whether ip is one of the VM's exit addresses. The IPv4
+// one is learned once with curl -4 through vm-wg's tunnel, and must not be
+// the host's own IPv4 exit address.
+func isVMExit(t testing.TB, ip string) bool {
+	t.Helper()
+	ip = strings.TrimSpace(ip)
+	if ip == vmEndpoint {
+		return true
+	}
+	vmExitOnce.Do(func() {
+		ensureUp(t, "vm-wg")
+		r := inProfile(t, userAllowed, "vm-wg", "curl", "-4", "-sS", "-m", "20", "https://ifconfig.me")
+		v4 := strings.TrimSpace(r.stdout)
+		if a := net.ParseIP(v4); r.code != 0 || a == nil || a.To4() == nil {
+			return // the VM has no IPv4 egress
+		}
+		host, _ := run("", "curl", "-4", "-sS", "-m", "20", "https://ifconfig.me")
+		if strings.TrimSpace(host) == v4 {
+			t.Errorf("vm-wg's IPv4 exit address is the host's own (%s)", v4)
+			return
+		}
+		vmExit4 = v4
+	})
+	return vmExit4 != "" && ip == vmExit4
+}
+
 // Test users (created by test/scripts/dev-install.sh):
 // vctest1: in group vpncell and allowed on every test profile
 // vctest2: in group vpncell, not allowed
