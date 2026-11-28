@@ -89,13 +89,23 @@ test("tunnel problems from status (issue #14)", async () => {
 test("reach notes from status (issue #15)", async () => {
   const { reachFromStatus, describeReach } = await import("../build/decide.js");
   const wg = { state: "up", reaches: "only 172.30.0.0/16; no IPv6", routes_source: "allowed-ips", split_tunnel: true, no_dns: true };
-  assert.deepEqual(describeReach(reachFromStatus(wg)), ["reaches only 172.30.0.0/16; no IPv6", "no DNS: hostnames fail"]);
+  assert.deepEqual(describeReach(reachFromStatus(wg)), {
+    summary: "reaches only 172.30.0.0/16; no IPv6",
+    routes: [],
+    warnings: [{ label: "no DNS", title: "No DNS server: hostnames fail" }],
+  });
   const ovpn = { state: "up", reaches: "only 192.168.0.0/16", routes_source: "pushed", split_tunnel: true, dns: ["8.8.8.8"], dns_unreachable: ["8.8.8.8"] };
-  assert.deepEqual(describeReach(reachFromStatus(ovpn)), [
-    "server routes: only 192.168.0.0/16 (no redirect-gateway)",
-    "DNS 8.8.8.8 not reachable through the tunnel",
-  ]);
+  assert.deepEqual(describeReach(reachFromStatus(ovpn)), {
+    summary: "server routes: only 192.168.0.0/16 (no redirect-gateway)",
+    routes: [],
+    warnings: [{ label: "DNS unreachable", title: "DNS 8.8.8.8 not reachable through the tunnel" }],
+  });
+  // A long route list collapses to a count; the list comes back for expanding.
+  const many = ["10.0.0.0/16", "10.1.0.0/16", "10.2.0.0/16", "10.3.0.0/16"];
+  const big = describeReach(reachFromStatus({ state: "up", reaches: `only ${many.join(", ")}; no IPv6`, routes_source: "pushed", split_tunnel: true }));
+  assert.equal(big.summary, "server routes: only 4 IPv4 networks; no IPv6 (no redirect-gateway)");
+  assert.deepEqual(big.routes, many);
   // A full tunnel with DNS: nothing to say.
-  assert.deepEqual(describeReach(reachFromStatus({ state: "up", reaches: "all IPv4; all IPv6", routes_source: "allowed-ips" })), []);
+  assert.equal(describeReach(reachFromStatus({ state: "up", reaches: "all IPv4; all IPv6", routes_source: "allowed-ips" })), null);
   assert.equal(reachFromStatus({ state: "down", no_dns: true }), undefined);
 });

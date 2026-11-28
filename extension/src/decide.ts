@@ -44,13 +44,35 @@ export function reachFromStatus(s: any): ReachView | undefined {
 
 // Short notes for the popup: only what limits the profile. A full tunnel
 // with DNS gives nothing.
-export function describeReach(r: ReachView | undefined): string[] {
-  if (!r) return [];
-  const out: string[] = [];
-  if (r.split && r.text) out.push(r.source === "pushed" ? `server routes: ${r.text} (no redirect-gateway)` : `reaches ${r.text}`);
-  if (r.noDNS) out.push("no DNS: hostnames fail");
-  else if (r.dnsUnreachable.length > 0) out.push(`DNS ${r.dnsUnreachable.join(", ")} not reachable through the tunnel`);
-  return out;
+// `summary` is one short line; a long route list is replaced by a count and
+// returned in `routes` for an expandable list. `warnings` become chips.
+export interface ReachSummary {
+  summary: string;
+  routes: string[];
+  warnings: { label: string; title: string }[];
+}
+
+const MAX_INLINE_ROUTES = 3;
+
+export function describeReach(r: ReachView | undefined): ReachSummary | null {
+  if (!r) return null;
+  let summary = "";
+  const routes: string[] = [];
+  if (r.split && r.text) {
+    // Daemon text: "<IPv4 part>; <IPv6 part>", e.g. "only 10.0.0.0/8, ...; no IPv6".
+    const parts = r.text.split("; ").map((part, i) => {
+      const list = part.replace(/^only /, "").split(", ");
+      if (list.length <= MAX_INLINE_ROUTES) return part;
+      routes.push(...list);
+      return `${part.startsWith("only ") ? "only " : ""}${list.length} ${i === 0 ? "IPv4" : "IPv6"} networks`;
+    });
+    summary = r.source === "pushed" ? `server routes: ${parts.join("; ")} (no redirect-gateway)` : `reaches ${parts.join("; ")}`;
+  }
+  const warnings: ReachSummary["warnings"] = [];
+  if (r.noDNS) warnings.push({ label: "no DNS", title: "No DNS server: hostnames fail" });
+  else if (r.dnsUnreachable.length > 0) warnings.push({ label: "DNS unreachable", title: `DNS ${r.dnsUnreachable.join(", ")} not reachable through the tunnel` });
+  if (!summary && warnings.length === 0) return null;
+  return { summary, routes, warnings };
 }
 
 // Why a tunnel is not connected, from `status` (daemon fields reason,
