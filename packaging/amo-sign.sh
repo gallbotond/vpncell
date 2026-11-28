@@ -12,7 +12,7 @@ set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 make -C "$repo" extension
 mkdir -p "$repo/bin/signed"
-npx --yes web-ext@8.3.0 sign \
+npx --yes web-ext@10.8.0 sign \
   --channel unlisted \
   --source-dir "$repo/extension/dist" \
   --artifacts-dir "$repo/bin/signed" \
