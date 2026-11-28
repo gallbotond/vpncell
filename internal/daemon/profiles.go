@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -356,12 +357,20 @@ func (d *Daemon) watchHostNetwork() {
 	go func() {
 		ch := make(chan netlink.AddrUpdate, 64)
 		done := make(chan struct{})
+		seen := addrSet{}
+		if addrs, err := netlink.AddrList(nil, netlink.FAMILY_ALL); err == nil {
+			for _, a := range addrs {
+				seen[addrKey(a.LinkIndex, a.IPNet)] = true
+			}
+		}
 		if err := netlink.AddrSubscribe(ch, done); err != nil {
 			d.log.Warn("address watch unavailable", "err", err)
 			return
 		}
-		for range ch {
-			notify()
+		for u := range ch {
+			if seen.changed(u) {
+				notify()
+			}
 		}
 	}()
 	go func() {
@@ -407,6 +416,29 @@ func (d *Daemon) watchHostNetwork() {
 			d.backends[p.Backend].OnHostNetworkChange(d.ctx, p, rt.ifname)
 		}
 	}
+}
+
+// addrSet tracks host addresses so that a lifetime refresh is not taken for a
+// change: every IPv6 router advertisement re-announces the SLAAC addresses
+// (RTM_NEWADDR), and some routers send one every few seconds.
+type addrSet map[string]bool
+
+func addrKey(link int, ipn *net.IPNet) string {
+	return fmt.Sprintf("%d %s", link, ipn)
+}
+
+// changed records u and reports whether an address appeared or went away.
+func (s addrSet) changed(u netlink.AddrUpdate) bool {
+	k := addrKey(u.LinkIndex, &u.LinkAddress)
+	if s[k] == u.NewAddr {
+		return false
+	}
+	if u.NewAddr {
+		s[k] = true
+	} else {
+		delete(s, k)
+	}
+	return true
 }
 
 // removeHostLinks deletes vpncell tunnel devices left in the host namespace.
