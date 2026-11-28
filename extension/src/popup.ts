@@ -1,9 +1,9 @@
 // Popup: the profiles (state, exit IP, Up/Down, which containers use them)
 // and the containers (which profile each uses).
 import { describeProblem, describeReach, ReachView, TunnelProblem } from "./decide.js";
-import { exitIPView, orderContainers, profileOrder, profileUsers, thisTab } from "./view.js";
+import { containerIcon, exitIPView, orderContainers, profileOrder, profileUsers, thisTab } from "./view.js";
 interface PopupState {
-  containers: { id: string; name: string; color: string; icon: string }[];
+  containers: { id: string; name: string; color: string; icon: string; iconUrl?: string }[];
   mapping: Record<string, string>;
   profiles: Record<string, { state: string; autostart: string; exitIP?: string; problem?: TunnelProblem; reach?: ReachView }>;
   daemonUp: boolean;
@@ -33,6 +33,16 @@ async function act(key: string, msg: object, state?: string): Promise<void> {
   } catch (e) {
     errors.set(key, { msg: String(e instanceof Error ? e.message : e), state });
   }
+}
+
+// The container's icon in its colour, like Firefox's own container UI
+// (issue #39); a colour dot if Firefox gave no icon.
+function icon(c: { color: string; iconUrl?: string }): HTMLElement {
+  const i = containerIcon(c.iconUrl, c.color);
+  const span = el("span", { class: i ? "cicon" : "cicon dot" });
+  span.style.backgroundColor = i ? i.color : c.color;
+  if (i) span.style.maskImage = i.mask;
+  return span;
 }
 
 function pill(state: string, blocked: string | undefined): HTMLElement {
@@ -101,9 +111,9 @@ function profileCard(s: PopupState, n: string, users: string[]): HTMLElement {
 function containerRow(s: PopupState, c: PopupState["containers"][number], names: string[], current: boolean): HTMLElement {
   const mapped = s.mapping[c.id];
   const tr = el("tr", { "data-container": c.id, class: (mapped ? "mapped" : "direct") + (current ? " current" : "") });
-  const name = el("td", { class: "name" }, c.name);
+  const name = el("td", { class: "name" });
+  name.append(icon(c), el("span", {}, c.name));
   if (current) name.append(el("span", { class: "tag" }, "this tab"));
-  name.style.borderLeft = `4px solid ${c.color}`;
   const sel = el("select", { "data-container": c.id, class: "mapping" });
   sel.append(el("option", { value: "" }, "Direct (no VPN)"));
   for (const n of names) {
@@ -149,7 +159,10 @@ function thisTabLine(s: PopupState, tab: browser.tabs.Tab | undefined): HTMLElem
     line.textContent = t.text;
     return line;
   }
-  line.append(el("span", { class: "label" }, "This tab: "), el("span", { class: "cname" }, t.container), document.createTextNode(" → "));
+  const c = s.containers.find((x) => x.id === tab?.cookieStoreId);
+  line.append(el("span", { class: "label" }, "This tab: "));
+  if (c) line.append(icon(c));
+  line.append(el("span", { class: "cname" }, t.container), document.createTextNode(" → "));
   if (!t.profile) {
     line.append(el("span", { class: "muted" }, "direct (no VPN)"));
   } else {

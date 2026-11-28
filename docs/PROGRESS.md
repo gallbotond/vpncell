@@ -62,6 +62,7 @@ AF_PACKET in the test binary.
 | #34 popup: Profiles and Containers sections | `feat/popup-sections` | [#51](https://github.com/gallbotond/vpncell/pull/51) | merged |
 | #35 popup: current tab first | `feat/popup-current-tab` | [#52](https://github.com/gallbotond/vpncell/pull/52) | merged |
 | #38 popup: dark mode | `feat/popup-dark-mode` | [#53](https://github.com/gallbotond/vpncell/pull/53) | merged |
+| #39 popup: container icons | `feat/popup-container-icons` | [#54](https://github.com/gallbotond/vpncell/pull/54) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -254,6 +255,21 @@ AF_PACKET in the test binary.
   no hex colours outside them, every `var()` defined); tarball Firefox
   with `ui.systemUsesDarkTheme` set: dark panel, readable pills, chips and
   buttons.
+
+### #39 (PR #54, extension only)
+
+- Container icons next to the names (rows and the "This tab" line),
+  tinted with the container colour. Checked in Firefox first: the
+  `resource://usercontext-content/<icon>.svg` URL loads in the extension
+  page, but as an `<img>` it renders black (no `context-fill`), so the
+  icon is a CSS mask over the colour; non-Firefox URLs give a colour dot.
+  No SVGs bundled.
+- Also: PR #50 committed my local `extension/node_modules` symlink
+  (`node_modules/` in `.gitignore` matches only directories). Removed from
+  git; the pattern is now `node_modules`.
+- Tests: `containerIcon` unit test (only Firefox's URLs, colour checked);
+  tarball Firefox: briefcase, cart, fingerprint and dollar icons in their
+  colours.
 
 ## Issue run (2026-11-26)
 
