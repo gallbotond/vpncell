@@ -234,6 +234,9 @@ func (d *Daemon) downLocked(p *profile.Profile, rt *rtProfile, force, kill bool)
 	rt.status = backend.Status{}
 	rt.exitIP = ""
 	rt.upSince = time.Time{}
+	// The next connection logs its routes and writes its pushed DNS again,
+	// even when they are the same as this one's.
+	rt.routesKey, rt.pushedKey = "", ""
 	rt.mu.Unlock()
 	d.maybeDeleteNamespace(p.Name)
 	d.setState(p.Name, rt, backend.StateDown, "")
@@ -271,11 +274,7 @@ func (d *Daemon) refreshStatus(p *profile.Profile, rt *rtProfile) backend.Status
 	if changed {
 		rt.pushedKey = key
 	}
-	rkey := fmt.Sprint(st.RoutesSource, st.Routes, st.RedirectGateway)
-	routesChanged := st.RoutesSource != "" && rkey != rt.routesKey
-	if routesChanged {
-		rt.routesKey = rkey
-	}
+	routesChanged := rt.noteRoutes(st)
 	rt.mu.Unlock()
 	if routesChanged {
 		// What the tunnel carries (issue #15): OpenVPN's pushed routes and

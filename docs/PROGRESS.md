@@ -50,6 +50,7 @@ AF_PACKET in the test binary.
 | Issue(s) / PR | Branch | PR | State |
 |---|---|---|---|
 | IPv6 lifetime refreshes in the host network watcher | `fix/ignore-addr-lifetime-refresh` | [#29](https://github.com/gallbotond/vpncell/pull/29) | merged |
+| follow-up: `tunnel routes` logged on every connection | `fix/routes-log-per-connection` | [#42](https://github.com/gallbotond/vpncell/pull/42) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -66,6 +67,18 @@ AF_PACKET in the test binary.
   `TestReachVMOpenVPN` fails when `TestVMExitIP` runs before it (also on
   `main`): the daemon logs `tunnel routes` only when they change and never
   forgets them on `down`. Fixed separately (next row).
+
+### Routes log per connection (PR #42, package 0.9.15)
+
+- `downLocked` clears the remembered routes and pushed DNS, so each
+  connection logs `tunnel routes` (and rewrites pushed DNS) even when they
+  are the same as the last connection's.
+- `TestReachVMOpenVPN` now brings `vm-ovpn` up first and checks the log of
+  the reconnect, so it no longer depends on test order. It failed against
+  0.9.14 and passes against 0.9.15 with `TestVMExitIP`,
+  `TestReachSplitWireGuard`, `TestReachNoDNS`, `TestUpDown`,
+  `TestVMFailClosedAndDNS`, `TestDaemonRestartShell`. Unit test
+  `TestNoteRoutes`.
 
 ## Issue run (2026-11-26)
 
