@@ -45,18 +45,26 @@ jobs:
       # VET is also vetted, which compiles the tests too, so a package is in
       # VET only once its tests build on every target.
       BUILD: >-
+        ./cmd/vpncell
+        ./cmd/vpncell-native
         ./internal/backend
         ./internal/brand
+        ./internal/client
         ./internal/conflict
+        ./internal/control
         ./internal/dnsfiles
         ./internal/importer
         ./internal/nmimport
         ./internal/profile
         ./internal/reach
       VET: >-
+        ./cmd/vpncell
+        ./cmd/vpncell-native
         ./internal/backend
         ./internal/brand
+        ./internal/client
         ./internal/conflict
+        ./internal/control
         ./internal/dnsfiles
         ./internal/importer
         ./internal/nmimport

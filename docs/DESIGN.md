@@ -78,6 +78,9 @@ says what replaces them. Linux behaviour does not change.
 | Package | Linux-only part (other platforms) |
 |---|---|
 | `profile` | file owner in `stat_linux.go` (owner unknown, so the root-owner check is skipped; the mode check still runs) |
+| `control` | descriptor passing and peer credentials: the SCM_RIGHTS `Transport` and `Peer` (SO_PEERCRED, SO_PEERGROUPS) in `transport_linux.go` (frames only, no descriptors; `Peer` unsupported). The protocol and the framing are portable and run over any `Transport`. |
+| `client` | `Exec` (sessions: pty, descriptor passing) in `exec_linux.go` (unsupported) |
+| `cmd/vpncell`, `cmd/vpncell-native` | none of their own (through `client`) |
 | `importer`, `backend` (the interface), `brand`, `conflict`, `dnsfiles`, `nmimport`, `reach` | none |
 
 Linux-only packages: `netns`, `firewall`, `backend/wireguard`,
