@@ -43,8 +43,11 @@ type Pushed struct {
 
 func runDir(p string) string     { return brand.ProfileRunDir(p) }
 func ConfPath(p string) string   { return filepath.Join(runDir(p), "openvpn.conf") }
-func MgmtPath(p string) string   { return filepath.Join(runDir(p), "mgmt.sock") }
+func MgmtPath(p string) string   { return mgmtPath(p) }
 func PushedPath(p string) string { return filepath.Join(runDir(p), "pushed.json") }
+
+// mgmtPath is a variable so that tests can point it at a fake socket.
+var mgmtPath = func(p string) string { return filepath.Join(runDir(p), "mgmt.sock") }
 func UnitName(p string) string   { return brand.OpenVPNUnit + p + ".service" }
 
 type Backend struct {
@@ -192,7 +195,7 @@ func (b *Backend) Adopt(ctx context.Context, p *profile.Profile, ifname string) 
 // mgmt runs management commands on one connection and returns the
 // response lines of each.
 func mgmt(p string, cmds ...string) ([][]string, error) {
-	c, err := net.DialTimeout("unix", MgmtPath(p), 2*time.Second)
+	c, err := net.DialTimeout("unix", mgmtPath(p), 2*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -396,11 +399,41 @@ func (b *Backend) Status(ctx context.Context, p *profile.Profile, ifname string)
 	return st, nil
 }
 
-// OnHostNetworkChange asks openvpn to reconnect at once (it resolves the
-// remote again by itself).
+// OnHostNetworkChange asks a connected openvpn to reconnect at once (it
+// resolves the remote again by itself). One that is still connecting or
+// waiting to retry gets no signal (issue #31): it resolves the remote on its
+// next attempt anyway, and a SIGUSR1 during its restart pause starts the
+// pause again, so steady host network changes would keep it from ever
+// connecting.
 func (b *Backend) OnHostNetworkChange(ctx context.Context, p *profile.Profile, ifname string) {
 	forget(p.Name)
-	if _, err := mgmt(p.Name, "signal SIGUSR1"); err != nil {
+	state, sent, err := reconnectIfConnected(p.Name)
+	if err != nil {
 		b.Log.Debug("openvpn reconnect signal", "profile", p.Name, "err", err)
+		return
 	}
+	if !sent {
+		b.Log.Debug("openvpn not connected; no reconnect signal", "profile", p.Name, "state", state)
+	}
+}
+
+// reconnectIfConnected sends SIGUSR1 if openvpn's current state is
+// CONNECTED and returns that state.
+func reconnectIfConnected(p string) (state string, sent bool, err error) {
+	res, err := mgmt(p, "state")
+	if err != nil {
+		return "", false, err
+	}
+	if len(res) > 0 {
+		if h := parseHistory(res[0]); len(h) > 0 {
+			state = h[len(h)-1].state
+		}
+	}
+	if state != "CONNECTED" {
+		return state, false, nil
+	}
+	if _, err := mgmt(p, "signal SIGUSR1"); err != nil {
+		return state, false, err
+	}
+	return state, true, nil
 }
