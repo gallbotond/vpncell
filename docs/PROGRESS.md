@@ -57,6 +57,7 @@ AF_PACKET in the test binary.
 | #31 OpenVPN reconnect signal only when connected | `fix/openvpn-signal-only-connected` | [#45](https://github.com/gallbotond/vpncell/pull/45) | merged |
 | #30 host network watcher subscribes again | `fix/host-watch-resubscribe` | [#46](https://github.com/gallbotond/vpncell/pull/46) | merged |
 | #19 warn on an identity used by an active NetworkManager VPN | `feat/nm-identity-warning` | [#47](https://github.com/gallbotond/vpncell/pull/47) | merged |
+| #36 popup: exit IP under the state | `feat/popup-exit-ip` | [#49](https://github.com/gallbotond/vpncell/pull/49) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -191,6 +192,15 @@ AF_PACKET in the test binary.
   `TestImportSafetyOpenVPN`, `TestImportSafetyWireGuard`, `TestVMExitIP`,
   `TestReachVMOpenVPN`, `TestNoSecretsInJournal`,
   `TestDaemonRestartShell` pass.
+
+### #36 (PR #49, extension only)
+
+- The exit IP column is gone; the IP shows under the state pill when the
+  daemon probed one, and the pill of a connected profile without one has a
+  tooltip naming `[status] exit_ip_url` (the issue's proposal plus its
+  optional tooltip). New `extension/src/view.ts` for pure popup helpers.
+- Tests: `exitIPView` unit test; `make test`, extension build; checked in
+  the tarball Firefox (no column; no profile here sets `exit_ip_url`).
 
 ## Issue run (2026-11-26)
 
