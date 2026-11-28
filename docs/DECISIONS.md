@@ -18,6 +18,9 @@ prompt, this file wins.
   manifests (per-user, system-wide, snap and portal entries). Document each
   AppArmor change, as the prompt requires. The only limits are the ones below:
   keep the host's network connection and Tailscale working.
+  **Outdated (2026-11-28):** the host is no longer disposable. `/etc/vpncell`
+  now holds the user's real profiles. The "sudo" section in
+  [AGENTS.md](../AGENTS.md) limits what sudo may do and wins over this bullet.
 - The host's own network connection must keep working throughout. This is
   already a requirement of the prompt; on this host it also keeps the session
   reachable.

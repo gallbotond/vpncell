@@ -25,6 +25,26 @@ Debian package.
   only test profiles (`t-*`, `vm-*`).
 - Never skip, weaken or delete a test to make it pass.
 
+## sudo
+
+This host has passwordless sudo. You may use it without asking for build and
+test work: install apt packages, install a newly built `.deb` over the
+installed one (one agent at a time, see "Parallel work"), run `make itest`,
+add AppArmor profiles (document each change), and create namespaces,
+interfaces and firewall rules inside test namespaces.
+
+This host is not disposable. Even with sudo:
+
+- Never remove or purge the installed package (`apt remove`, `apt purge`,
+  `dpkg -r`, `dpkg -P`). To change the version, install a newer `.deb`.
+- Never import, remove or edit a profile that is not a test profile
+  (`t-*`, `vm-*`). Never delete or change other files under `/etc/vpncell`,
+  including `/etc/vpncell/secrets/`.
+- Never bring down the user's profiles or stop or kill their sessions and
+  tunnels. `vpncell reload` and restarting `vpncelld` are allowed: running
+  profiles survive both, and the integration tests use them.
+- The hard limits above still apply.
+
 ## Commands
 
 ```bash
