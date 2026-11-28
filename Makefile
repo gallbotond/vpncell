@@ -13,6 +13,7 @@ build:
 # packaging/amo-sign.sh).
 extension:
 	cd extension && (test -d node_modules || npm ci --no-audit --no-fund) && npm run -s build
+	mkdir -p $(BIN)
 	python3 -c 'import zipfile,os,sys; z=zipfile.ZipFile("$(BIN)/vpncell.xpi","w",zipfile.ZIP_DEFLATED); [z.write(os.path.join("extension/dist",f),f) for f in sorted(os.listdir("extension/dist"))]; z.close()'
 
 test:
