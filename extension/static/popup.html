@@ -9,13 +9,19 @@
   td { padding: 4px 6px; border-bottom: 1px solid #ddd; }
   td.name { padding-left: 8px; }
   .ok { color: #058b00; } .bad { color: #d70022; font-weight: bold; }
-  td.state { white-space: nowrap; }
-  td.state .exitip { font-family: monospace; font-size: 11px; color: #555; margin-top: 2px; }
-  td.state .why { white-space: normal; color: #d70022; font-size: 12px; margin-top: 2px; }
-  td.state .reach { white-space: normal; color: #a15c00; font-size: 11px; max-width: 260px; }
-  td.state .hint { white-space: normal; color: #666; font-size: 11px; max-width: 260px; }
-  td.state details.reach summary { cursor: pointer; }
-  td.state .routes { white-space: pre; font-family: monospace; font-size: 11px; max-height: 120px; overflow-y: auto; }
+  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #666; margin: 12px 0 4px; }
+  .cards { display: flex; flex-direction: column; gap: 6px; }
+  .card { border: 1px solid #ddd; border-radius: 6px; padding: 6px 8px; }
+  .card .head { display: flex; align-items: center; gap: 8px; }
+  .card .pname { font-weight: 600; }
+  .card .head button { margin-left: auto; }
+  .card .exitip { font-family: monospace; font-size: 11px; color: #555; margin-top: 2px; }
+  .card .why, td .why { color: #d70022; font-size: 12px; margin-top: 2px; }
+  .card .reach { color: #a15c00; font-size: 11px; margin-top: 2px; }
+  .card .hint { color: #666; font-size: 11px; }
+  .card details.reach summary { cursor: pointer; }
+  .card .routes { white-space: pre; font-family: monospace; font-size: 11px; max-height: 120px; overflow-y: auto; }
+  .card .uses { color: #666; font-size: 11px; margin-top: 4px; }
   tr.direct td { color: #888; } tr.direct select { opacity: .7; }
   .muted { color: #888; }
   .pill { display: inline-block; padding: 0 8px; border-radius: 9px; font-size: 11px; font-weight: 600; line-height: 18px; }

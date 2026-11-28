@@ -59,6 +59,7 @@ AF_PACKET in the test binary.
 | #19 warn on an identity used by an active NetworkManager VPN | `feat/nm-identity-warning` | [#47](https://github.com/gallbotond/vpncell/pull/47) | merged |
 | #36 popup: exit IP under the state | `feat/popup-exit-ip` | [#49](https://github.com/gallbotond/vpncell/pull/49) | merged |
 | #37 toolbar badge per tab | `feat/toolbar-badge` | [#50](https://github.com/gallbotond/vpncell/pull/50) | merged |
+| #34 popup: Profiles and Containers sections | `feat/popup-sections` | [#51](https://github.com/gallbotond/vpncell/pull/51) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -217,6 +218,19 @@ AF_PACKET in the test binary.
   `about:blank` in a container mapped to `demo-wireguard` showed a green
   `D`, one mapped to an unknown profile a red `!`, direct tabs none (read
   with `browserAction.getBadgeText`).
+
+### #34 (PR #51, extension only)
+
+- Popup split into **Profiles** (one card per profile: state pill, exit
+  IP, why, reach and DNS chips, Up/Down, "Used by" containers; profiles
+  in use first) and **Containers** (name and dropdown only; a mapping to
+  an unavailable profile shows "blocked" in its row). All visible
+  profiles get a card, so a profile no container uses can still be
+  brought up or down. Up/Down errors and expanded route lists are kept
+  per profile.
+- Tests: `profileUsers`/`profileOrder` unit test; `make test`, extension
+  build; tarball Firefox with three containers mapped to two profiles
+  ("Used by: Work, Banking").
 
 ## Issue run (2026-11-26)
 

@@ -57,3 +57,21 @@ export function badgeFor(req: RequestView, st: State, now: number): Badge {
   // failed: …: the tab cannot connect, and never goes direct.
   return { text: "!", color: BADGE_BLOCKED, title: `${profile}: ${state}` };
 }
+
+// Which containers use each profile (issue #34), in container order.
+export function profileUsers(mapping: Record<string, string>, containers: { id: string; name: string }[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const c of containers) {
+    const p = mapping[c.id];
+    if (p) (out[p] ??= []).push(c.name);
+  }
+  return out;
+}
+
+// Profile cards: the ones containers use first, then the others; each group
+// sorted by name.
+export function profileOrder(names: string[], users: Record<string, string[]>): string[] {
+  const used = names.filter((n) => users[n]?.length).sort();
+  const rest = names.filter((n) => !users[n]?.length).sort();
+  return [...used, ...rest];
+}

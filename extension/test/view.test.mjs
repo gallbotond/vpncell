@@ -61,3 +61,16 @@ test("toolbar badge per tab (issue #37)", async () => {
   assert.deepEqual(badgeFor({ cookieStoreId: "firefox-container-1" }, down, now).text, "!");
   assert.match(badgeFor({ cookieStoreId: "firefox-container-1" }, down, now).title, /vpncelld is not reachable/);
 });
+
+test("profile cards and their containers (issue #34)", async () => {
+  const { profileUsers, profileOrder } = await import("../build/view.js");
+  const containers = [
+    { id: "c1", name: "Work" },
+    { id: "c2", name: "Mail" },
+    { id: "c3", name: "Shopping" },
+    { id: "c4", name: "Lab" },
+  ];
+  const users = profileUsers({ c1: "work", c2: "work", c4: "lab", c9: "gone" }, containers);
+  assert.deepEqual(users, { work: ["Work", "Mail"], lab: ["Lab"] });
+  assert.deepEqual(profileOrder(["zeta", "work", "alpha", "lab"], users), ["lab", "work", "alpha", "zeta"]);
+});
