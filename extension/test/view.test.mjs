@@ -109,3 +109,11 @@ test("container icons (issue #39)", async () => {
     assert.equal(containerIcon(bad, "#000"), null, String(bad));
   }
 });
+
+test("header bar (issue #40)", async () => {
+  const { headerView, CONTAINERS_NOTE } = await import("../build/view.js");
+  assert.deepEqual(headerView(true), { cls: "ok", text: "vpncelld connected" });
+  assert.equal(headerView(false).cls, "bad");
+  assert.match(headerView(false).text, /not reachable — mapped containers are blocked/);
+  assert.match(CONTAINERS_NOTE, /Only Multi-Account Containers can be mapped/);
+});

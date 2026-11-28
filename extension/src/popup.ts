@@ -1,7 +1,7 @@
 // Popup: the profiles (state, exit IP, Up/Down, which containers use them)
 // and the containers (which profile each uses).
 import { describeProblem, describeReach, ReachView, TunnelProblem } from "./decide.js";
-import { containerIcon, exitIPView, orderContainers, profileOrder, profileUsers, thisTab } from "./view.js";
+import { CONTAINERS_NOTE, containerIcon, exitIPView, headerView, orderContainers, profileOrder, profileUsers, thisTab } from "./view.js";
 interface PopupState {
   containers: { id: string; name: string; color: string; icon: string; iconUrl?: string }[];
   mapping: Record<string, string>;
@@ -177,8 +177,13 @@ async function render(): Promise<void> {
   const [s, tab]: [PopupState, browser.tabs.Tab | undefined] = await Promise.all([browser.runtime.sendMessage({ cmd: "getState" }), activeTab()]);
   const root = document.getElementById("root")!;
   root.replaceChildren();
-  const daemon = el("p", { id: "daemon", class: s.daemonUp ? "ok" : "bad" }, s.daemonUp ? "vpncelld: connected" : "vpncelld: not reachable — mapped containers are blocked");
-  root.append(daemon);
+  // Header bar: status dot, daemon state, and the containers-only note as
+  // an ⓘ tooltip (issue #40).
+  const h = headerView(s.daemonUp);
+  const header = el("header", { id: "daemon", class: h.cls, role: "status" });
+  header.append(el("span", { class: "dot" }), el("span", { class: "text" }, h.text));
+  header.append(el("span", { class: "info", title: CONTAINERS_NOTE, "aria-label": CONTAINERS_NOTE, tabindex: "0" }, "ⓘ"));
+  root.append(header);
   root.append(thisTabLine(s, tab));
   const names = Object.keys(s.profiles).sort();
   const users = profileUsers(s.mapping, s.containers);
@@ -190,7 +195,8 @@ async function render(): Promise<void> {
   }
   root.append(el("h2", {}, "Containers"));
   if (s.containers.length === 0) {
-    root.append(el("p", {}, "No containers. Create Multi-Account Containers first; default tabs and private windows always connect directly."));
+    // The empty state keeps the note visible.
+    root.append(el("p", { class: "note" }, `No containers. Create Multi-Account Containers first. ${CONTAINERS_NOTE}`));
   }
   const table = el("table", { class: "containers" });
   const current = tab && !tab.incognito ? tab.cookieStoreId : undefined;
