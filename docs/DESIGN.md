@@ -80,11 +80,14 @@ says what replaces them. Linux behaviour does not change.
 | `profile` | file owner in `stat_linux.go` (owner unknown, so the root-owner check is skipped; the mode check still runs) |
 | `control` | descriptor passing and peer credentials: the SCM_RIGHTS `Transport` and `Peer` (SO_PEERCRED, SO_PEERGROUPS) in `transport_linux.go` (frames only, no descriptors; `Peer` unsupported). The protocol and the framing are portable and run over any `Transport`. |
 | `client` | `Exec` (sessions: pty, descriptor passing) in `exec_linux.go` (unsupported) |
+| `socks` | the `Dialer` is injected through `Backend.Get` and `Resolver`; on Linux it is the profile namespace's `netns.Factory`, and the `netns.ErrClosed` check is in `socks_linux.go` (no namespaces) |
 | `cmd/vpncell`, `cmd/vpncell-native` | none of their own (through `client`) |
 | `importer`, `backend` (the interface), `brand`, `conflict`, `dnsfiles`, `nmimport`, `reach` | none |
 
 Linux-only packages: `netns`, `firewall`, `backend/wireguard`,
-`backend/openvpn`, `daemon`, `cmd/vpncelld`.
+`backend/openvpn`, `platform` (mounts, Ubuntu paths), `session` (the
+session helper), `daemon`, `cmd/vpncelld`. No portable package imports
+them.
 
 Privileged code is `cmd/vpncelld` plus `internal/{netns,backend,session,socks,firewall,dnsfiles}`.
 Nothing in the daemon calls a shell or `ip`/`wg`/`nft`. The only external

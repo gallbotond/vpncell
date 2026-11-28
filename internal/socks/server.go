@@ -2,6 +2,10 @@
 // RFC 1929 username/password). It listens in the host namespace on
 // 127.0.0.1; every outbound socket, including DNS, is created inside the
 // profile namespace by the profile's socket factory (DESIGN.md §6, §7).
+//
+// The server is portable: it reaches the profile only through the Dialer
+// that Backend.Get returns. On Linux that is the profile namespace's
+// netns.Factory (socks_linux.go).
 package socks
 
 import (
@@ -18,8 +22,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/gallbotond/vpncell/internal/netns"
 )
 
 // Reply codes.
@@ -35,11 +37,17 @@ const (
 	repAddrUnsupported = 0x08
 )
 
+// Dialer connects to dst from inside the profile (network "tcp" or "udp").
+// On Linux it is the profile namespace's *netns.Factory.
+type Dialer interface {
+	Dial(ctx context.Context, network string, dst netip.AddrPort) (net.Conn, error)
+}
+
 // Backend gives the server what it needs per connection. Get returns an
 // error when the profile is not usable (down, failed), which makes the
 // request fail closed.
 type Backend interface {
-	Get(ctx context.Context) (*netns.Factory, *Resolver, error)
+	Get(ctx context.Context) (Dialer, *Resolver, error)
 }
 
 // Server is one profile's SOCKS5 server.
@@ -312,7 +320,7 @@ func errCode(err error) byte {
 		return repConnRefused
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, syscall.ETIMEDOUT):
 		return repTTLExpired
-	case errors.Is(err, netns.ErrClosed):
+	case namespaceClosed(err):
 		return repGeneralFailure
 	}
 	return repHostUnreachable
@@ -320,7 +328,7 @@ func errCode(err error) byte {
 
 // dialRace connects to the first reachable address, starting a new attempt
 // every 250 ms while earlier ones are still pending (happy eyeballs).
-func dialRace(ctx context.Context, f *netns.Factory, addrs []netip.Addr, port uint16) (net.Conn, error) {
+func dialRace(ctx context.Context, f Dialer, addrs []netip.Addr, port uint16) (net.Conn, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	type res struct {
