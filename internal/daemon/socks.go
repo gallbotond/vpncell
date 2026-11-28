@@ -18,7 +18,6 @@ import (
 	"github.com/gallbotond/vpncell/internal/brand"
 	"github.com/gallbotond/vpncell/internal/control"
 	"github.com/gallbotond/vpncell/internal/dnsfiles"
-	"github.com/gallbotond/vpncell/internal/netns"
 	"github.com/gallbotond/vpncell/internal/profile"
 	"github.com/gallbotond/vpncell/internal/socks"
 )
@@ -242,7 +241,7 @@ type socksBackend struct {
 	name string
 }
 
-func (b *socksBackend) Get(ctx context.Context) (*netns.Factory, *socks.Resolver, error) {
+func (b *socksBackend) Get(ctx context.Context) (socks.Dialer, *socks.Resolver, error) {
 	d := b.d
 	p, rt := d.getProfile(b.name)
 	if p == nil {
@@ -266,7 +265,7 @@ func (b *socksBackend) Get(ctx context.Context) (*netns.Factory, *socks.Resolver
 	st := rt.status
 	rt.mu.Unlock()
 	servers, search := d.dnsFor(p, st.PushedDNS, st.PushedSearch)
-	return f, &socks.Resolver{Factory: f, Servers: servers, Search: search}, nil
+	return f, &socks.Resolver{Dialer: f, Servers: servers, Search: search}, nil
 }
 
 // probeExitIP fetches the profile's exit_ip_url through the tunnel (opt-in,

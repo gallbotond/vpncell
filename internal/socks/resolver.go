@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gallbotond/vpncell/internal/netns"
 	"github.com/miekg/dns"
 )
 
@@ -17,7 +16,7 @@ import (
 // created inside the profile namespace. It never reads the host's
 // /etc/hosts or resolv.conf.
 type Resolver struct {
-	Factory *netns.Factory
+	Dialer  Dialer
 	Servers []netip.Addr
 	Search  []string
 	Timeout time.Duration
@@ -174,7 +173,7 @@ func answers(resp *dns.Msg, fq string, qt uint16) []netip.Addr {
 func (r *Resolver) exchange(ctx context.Context, m *dns.Msg, srv netip.AddrPort, network string, timeout time.Duration) (*dns.Msg, error) {
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	c, err := r.Factory.Dial(cctx, network, srv)
+	c, err := r.Dialer.Dial(cctx, network, srv)
 	if err != nil {
 		return nil, err
 	}

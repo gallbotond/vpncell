@@ -8,13 +8,11 @@ import (
 	"net"
 	"testing"
 	"time"
-
-	"github.com/gallbotond/vpncell/internal/netns"
 )
 
 type downBackend struct{ called bool }
 
-func (b *downBackend) Get(ctx context.Context) (*netns.Factory, *Resolver, error) {
+func (b *downBackend) Get(ctx context.Context) (Dialer, *Resolver, error) {
 	b.called = true
 	return nil, nil, errors.New("down")
 }

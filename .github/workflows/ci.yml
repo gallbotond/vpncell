@@ -57,6 +57,7 @@ jobs:
         ./internal/nmimport
         ./internal/profile
         ./internal/reach
+        ./internal/socks
       VET: >-
         ./cmd/vpncell
         ./cmd/vpncell-native
@@ -70,6 +71,7 @@ jobs:
         ./internal/nmimport
         ./internal/profile
         ./internal/reach
+        ./internal/socks
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
