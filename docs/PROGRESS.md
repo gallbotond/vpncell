@@ -12,7 +12,9 @@ and every open issue was fixed and merged: #16, #31, #30, #19, #18, #36,
 open issues or PRs remain. Package 0.9.21 is installed. The full
 integration suite against 0.9.21 had 129 passes; only the 7 known snap
 browser subtests (and their parents) fail. The browser tests with the
-final extension (after #55) pass with the tarball Firefox. See "Issue run
+final extension (after #55) pass with the tarball Firefox, and with the
+snap Firefox too since the portal grant for `snap.firefox_geckodriver`
+(open item 1, PR #57). See "Issue run
 (2026-11-28)" and "Open items for the user".
 
 ## Steps
@@ -70,6 +72,7 @@ AF_PACKET in the test binary.
 | #38 popup: dark mode | `feat/popup-dark-mode` | [#53](https://github.com/gallbotond/vpncell/pull/53) | merged |
 | #39 popup: container icons | `feat/popup-container-icons` | [#54](https://github.com/gallbotond/vpncell/pull/54) | merged |
 | #40 popup: status header, note as a tooltip | `feat/popup-header` | [#55](https://github.com/gallbotond/vpncell/pull/55) | merged |
+| follow-up: snap Firefox portal ID in the tests and README | `fix/snap-geckodriver-permission` | [#57](https://github.com/gallbotond/vpncell/pull/57) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -325,6 +328,21 @@ AF_PACKET in the test binary.
   empty state. The footer is gone.
 - Tests: `headerView` unit test; tarball Firefox light and dark.
 
+### Snap Firefox portal ID (PR #57, test and docs only)
+
+- Cause of the snap browser failures since step 4: the tests start the
+  snap Firefox through `/snap/bin/geckodriver`, so it runs as
+  `snap.firefox.geckodriver`; Ubuntu's portal patch "snap: Use per-sub-app
+  permissions ID" stores that as `snap.firefox_geckodriver`. The stored
+  `snap.firefox` grant did not apply, the portal tried its dialog, and a
+  headless window may not show one ("Only the focused app is allowed to
+  show a system access dialog").
+- The user granted `webextensions/vpncell` for `snap.firefox_geckodriver`.
+  The harness checks that ID (and the browser user's own session bus
+  instead of uid 1000) and prints the exact command; README "Snap
+  Firefox" explains both IDs.
+- Against 0.9.21: all 7 `TestBrowser*` tests pass, tarball and snap.
+
 ## Issue run (2026-11-26)
 
 | Issue(s) | Branch | PR | State |
@@ -445,14 +463,13 @@ have the ping fix; new ones do.
 
 ## Open items for the user
 
-1. **Snap Firefox still cannot start the native host** although the
-   permission store has `webextensions/vpncell: {'snap.firefox': ['yes']}`.
-   The user journal shows the portal asking again on every attempt:
-   `AccessDialog call failed: … Only the focused app is allowed to show a
-   system access dialog`. So the stored grant is not what this portal
-   version checks. Please start the snap Firefox once in your desktop
-   session with the extension installed and answer the dialog, then run
-   `make itest RUN=TestBrowser` (or tell me which app ID the portal uses).
+1. ~~Snap Firefox still cannot start the native host~~ **Solved
+   (2026-11-28):** the tests' snap Firefox runs as the snap's
+   `geckodriver` app (AppArmor label `snap.firefox.geckodriver`), and
+   Ubuntu's xdg-desktop-portal 1.21.1 keeps that sub-app's permission
+   under `snap.firefox_geckodriver`, not `snap.firefox`. You granted it
+   (README "Snap Firefox"); since then all 7 browser tests pass with the
+   tarball and the snap Firefox. The harness now checks that ID (PR #57).
 2. AMO signing (`packaging/amo-sign.sh` with your keys) — unchanged.
 3. Review README "Test VM changes" — unchanged.
 4. **GitGuardian incident 40980131** (PR #23, `internal/importer/reach_test.go`):
@@ -526,10 +543,9 @@ All are in README "Known limitations". The ones that matter most:
    installs it by default (first install; an admin opt-out survives
    upgrades; removal takes it out). `TestBrowserHTTPNameNoHostDNS` and
    `TestPackageUpgradeAndRemove` pass against the package.
-2. **Allow the snap Firefox once** to start the native host (portal
-   dialog, or the `gdbus … SetPermission webextensions true vpncell
-   snap.firefox "['yes']"` command in README "Snap Firefox"); then rerun
-   `make itest RUN=TestBrowser` for the snap results.
+2. ~~Allow the snap Firefox once~~ **Done (2026-11-28):** the tests need
+   the grant for `snap.firefox_geckodriver` (see "Open items for the
+   user", item 1); all snap browser tests pass.
 3. **AMO signing:** `AMO_JWT_ISSUER=… AMO_JWT_SECRET=… packaging/amo-sign.sh`
    (unlisted) to get a signed `.xpi` for release Firefox.
 4. Review the test-VM changes listed in README "Test VM changes".

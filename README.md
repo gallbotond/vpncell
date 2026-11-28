@@ -392,6 +392,20 @@ store. You can also grant it from a terminal in your desktop session:
 gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore --object-path /org/freedesktop/impl/portal/PermissionStore --method org.freedesktop.impl.portal.PermissionStore.SetPermission webextensions true vpncell snap.firefox "['yes']"
 ```
 
+The portal keeps the answer per snap app. The integration tests start the
+snap Firefox through `/snap/bin/geckodriver`, which runs it as the snap's
+`geckodriver` app, and Ubuntu's portal stores that one under
+`snap.firefox_geckodriver`. A headless Firefox can never show the dialog
+(only a focused app may), so grant it from a terminal in your session
+before running the browser tests:
+
+```bash
+gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore --object-path /org/freedesktop/impl/portal/PermissionStore --method org.freedesktop.impl.portal.PermissionStore.SetPermission webextensions true vpncell snap.firefox_geckodriver "['yes']"
+```
+
+That lets any Firefox started by the snap's geckodriver start
+`vpncell-native`; leave it out if you don't run the tests.
+
 ### Traffic that could bypass the proxy
 
 | Path | How vpncell handles it |

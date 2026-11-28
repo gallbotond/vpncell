@@ -50,15 +50,29 @@ func browserKinds() []browserKind {
 	return kinds
 }
 
-// snapPortalGranted reports whether the user allowed the snap Firefox to
-// start vpncell's native host through the WebExtensions portal (a one-time
-// dialog, stored in the portal permission store).
+// snapPortalID is the portal permission ID of the snap Firefox the tests
+// run: they start it through /snap/bin/geckodriver, so it runs as the
+// snap's geckodriver app (AppArmor label snap.firefox.geckodriver), and
+// Ubuntu's xdg-desktop-portal keeps a sub-app's permissions under
+// "snap.<snap>_<app>", apart from the desktop Firefox's "snap.firefox".
+const snapPortalID = "snap.firefox_geckodriver"
+
+// snapPortalGrant is the command that allows it (README, "Snap Firefox").
+const snapPortalGrant = `gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore ` +
+	`--object-path /org/freedesktop/impl/portal/PermissionStore ` +
+	`--method org.freedesktop.impl.portal.PermissionStore.SetPermission webextensions true vpncell ` + snapPortalID + ` "['yes']"`
+
+// snapPortalGranted reports whether the user allowed the tests' snap
+// Firefox to start vpncell's native host through the WebExtensions portal.
+// Headless, it can never answer the portal's dialog (only a focused app may
+// show one), so the answer must be in the permission store already.
 func snapPortalGranted() bool {
-	out, err := run("", "runuser", "-u", browserUser, "--", "env", "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus",
+	uid := fmt.Sprint(credsOf(browserUser).uid)
+	out, err := run("", "runuser", "-u", browserUser, "--", "env", "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+uid+"/bus",
 		"gdbus", "call", "--session", "--dest", "org.freedesktop.impl.portal.PermissionStore",
 		"--object-path", "/org/freedesktop/impl/portal/PermissionStore",
 		"--method", "org.freedesktop.impl.portal.PermissionStore.Lookup", "webextensions", "vpncell")
-	return err == nil && strings.Contains(out, "'snap.firefox': ['yes']")
+	return err == nil && strings.Contains(out, "'"+snapPortalID+"': ['yes']")
 }
 
 type browser struct {
@@ -103,9 +117,9 @@ func startBrowser(t *testing.T, kind browserKind, prefs map[string]any) *browser
 	if kind.name == "snap" && !snapPortalGranted() {
 		gd.Process.Kill()
 		gd.Wait()
-		t.Fatalf("KNOWN FAILURE (needs the user): the snap Firefox may not start vpncell-native yet. " +
-			"The WebExtensions portal asks once, in a dialog, whether Firefox may start it; headless tests cannot answer it. " +
-			"Allow it once (see README, \"Snap Firefox\"), then rerun.")
+		t.Fatalf("KNOWN FAILURE (needs the user): the tests' snap Firefox (%s) may not start vpncell-native yet. "+
+			"The WebExtensions portal would ask in a dialog, which a headless Firefox cannot show. "+
+			"Allow it as %s in your session (README, \"Snap Firefox\"), then rerun:\n  %s", snapPortalID, browserUser, snapPortalGrant)
 	}
 	b := &browser{t: t, kind: kind, gd: gd}
 	t.Cleanup(b.close)
