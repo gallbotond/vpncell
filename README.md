@@ -322,7 +322,8 @@ names are resolved inside the profile (`proxyDNS`).
   `~/.mozilla/native-messaging-hosts/`.
 - Open the toolbar popup and choose a profile per container. The popup shows
   each container's profile, state (up, connecting, down, failed or
-  blocked) and exit IP (if the profile sets `[status] exit_ip_url`), and
+  blocked), with the exit IP under the state if the profile sets
+  `[status] exit_ip_url` (otherwise the state's tooltip says so), and
   has Up/Down buttons.
 - **Only Multi-Account Containers can be mapped.** Default tabs and private
   windows always connect directly. Containers made by other extensions (for
