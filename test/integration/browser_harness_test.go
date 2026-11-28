@@ -16,9 +16,19 @@ import (
 	"github.com/gallbotond/vpncell/test/webdriver"
 )
 
-// The browser runs as the desktop user (in group vpncell and allowed on the
-// test profiles), like a real user's Firefox.
-const browserUser = "botond"
+// browserUser is the desktop user: the browser runs as this user (in group
+// vpncell and allowed on the test profiles), like a real user's Firefox,
+// and so do the tests that need a real desktop user.
+// VPNCELL_TEST_BROWSER_USER, else the user who ran sudo (make itest), else
+// "botond" (the build host).
+var browserUser = func() string {
+	for _, v := range []string{os.Getenv("VPNCELL_TEST_BROWSER_USER"), os.Getenv("SUDO_USER")} {
+		if v != "" && v != "root" {
+			return v
+		}
+	}
+	return "botond"
+}()
 
 const extUUID = "5f8e2a1c-0b6d-4c3e-9a7f-2d4b6c8e0a11"
 const extID = "vpncell@gallbotond.github.io"
@@ -50,29 +60,45 @@ func browserKinds() []browserKind {
 	return kinds
 }
 
-// snapPortalID is the portal permission ID of the snap Firefox the tests
-// run: they start it through /snap/bin/geckodriver, so it runs as the
-// snap's geckodriver app (AppArmor label snap.firefox.geckodriver), and
-// Ubuntu's xdg-desktop-portal keeps a sub-app's permissions under
-// "snap.<snap>_<app>", apart from the desktop Firefox's "snap.firefox".
-const snapPortalID = "snap.firefox_geckodriver"
+// Portal permission IDs of the snap Firefox the tests run. They start it
+// through /snap/bin/geckodriver, so it runs as the snap's geckodriver app
+// (AppArmor label snap.firefox.geckodriver). Ubuntu's xdg-desktop-portal
+// with the patch "snap: Use per-sub-app permissions ID" (26.04:
+// 1.21.1+ds-1ubuntu3.1) keeps that sub-app's permissions under
+// "snap.firefox_geckodriver"; upstream xdg-desktop-portal and Ubuntu builds
+// without the patch use "snap.firefox" for every app of the snap, the same
+// ID as the desktop Firefox.
+const (
+	snapPortalSubAppID = "snap.firefox_geckodriver"
+	snapPortalSnapID   = "snap.firefox"
+)
 
-// snapPortalGrant is the command that allows it (README, "Snap Firefox").
+// snapPortalGrant is the command that allows the sub-app ID (README, "Snap
+// Firefox").
 const snapPortalGrant = `gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore ` +
 	`--object-path /org/freedesktop/impl/portal/PermissionStore ` +
-	`--method org.freedesktop.impl.portal.PermissionStore.SetPermission webextensions true vpncell ` + snapPortalID + ` "['yes']"`
+	`--method org.freedesktop.impl.portal.PermissionStore.SetPermission webextensions true vpncell ` + snapPortalSubAppID + ` "['yes']"`
 
-// snapPortalGranted reports whether the user allowed the tests' snap
-// Firefox to start vpncell's native host through the WebExtensions portal.
-// Headless, it can never answer the portal's dialog (only a focused app may
-// show one), so the answer must be in the permission store already.
-func snapPortalGranted() bool {
+// snapPortalGrants reads which of the IDs above the user allowed to start
+// vpncell's native host through the WebExtensions portal. A headless
+// Firefox can never answer the portal's dialog (only a focused app may show
+// one), so the answer must be in the permission store already. The error is
+// set when the permission store cannot be asked at all (no session bus for
+// the user, for example when nobody is logged in).
+func snapPortalGrants() (subApp, snap bool, err error) {
 	uid := fmt.Sprint(credsOf(browserUser).uid)
-	out, err := run("", "runuser", "-u", browserUser, "--", "env", "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+uid+"/bus",
+	bus := "/run/user/" + uid + "/bus"
+	out, err := run("", "runuser", "-u", browserUser, "--", "env", "DBUS_SESSION_BUS_ADDRESS=unix:path="+bus,
 		"gdbus", "call", "--session", "--dest", "org.freedesktop.impl.portal.PermissionStore",
 		"--object-path", "/org/freedesktop/impl/portal/PermissionStore",
 		"--method", "org.freedesktop.impl.portal.PermissionStore.Lookup", "webextensions", "vpncell")
-	return err == nil && strings.Contains(out, "'"+snapPortalID+"': ['yes']")
+	if err != nil {
+		if strings.Contains(out, "org.freedesktop.portal.Error.NotFound") {
+			return false, false, nil // the store works; nothing is granted
+		}
+		return false, false, fmt.Errorf("cannot ask the portal permission store on %s's session bus %s: %v: %s", browserUser, bus, err, strings.TrimSpace(out))
+	}
+	return strings.Contains(out, "'"+snapPortalSubAppID+"': ['yes']"), strings.Contains(out, "'"+snapPortalSnapID+"': ['yes']"), nil
 }
 
 type browser struct {
@@ -114,12 +140,28 @@ func startBrowser(t *testing.T, kind browserKind, prefs map[string]any) *browser
 	if err := gd.Start(); err != nil {
 		t.Fatalf("geckodriver: %v", err)
 	}
-	if kind.name == "snap" && !snapPortalGranted() {
-		gd.Process.Kill()
-		gd.Wait()
-		t.Fatalf("KNOWN FAILURE (needs the user): the tests' snap Firefox (%s) may not start vpncell-native yet. "+
-			"The WebExtensions portal would ask in a dialog, which a headless Firefox cannot show. "+
-			"Allow it as %s in your session (README, \"Snap Firefox\"), then rerun:\n  %s", snapPortalID, browserUser, snapPortalGrant)
+	// Appended to the "extension connected" timeout when only the snap-wide
+	// grant exists: on a patched portal it does not cover geckodriver.
+	connectHint := ""
+	if kind.name == "snap" {
+		subApp, snap, err := snapPortalGrants()
+		switch {
+		case err != nil:
+			gd.Process.Kill()
+			gd.Wait()
+			t.Fatalf("KNOWN FAILURE (needs the user): %v. The snap Firefox starts vpncell-native through the "+
+				"WebExtensions portal on %s's session bus, which needs a running user session (any login, or loginctl enable-linger); "+
+				"or set VPNCELL_TEST_BROWSER_USER, then rerun.", err, browserUser)
+		case !subApp && !snap:
+			gd.Process.Kill()
+			gd.Wait()
+			t.Fatalf("KNOWN FAILURE (needs the user): the tests' snap Firefox may not start vpncell-native yet. "+
+				"The WebExtensions portal would ask in a dialog, which a headless Firefox cannot show. "+
+				"Allow it as %s in your session (README, \"Snap Firefox\"), then rerun:\n  %s", browserUser, snapPortalGrant)
+		case !subApp:
+			connectHint = fmt.Sprintf(" (only %s is allowed in the portal; Ubuntu's portal keeps the tests' geckodriver Firefox under %s: %s)",
+				snapPortalSnapID, snapPortalSubAppID, snapPortalGrant)
+		}
 	}
 	b := &browser{t: t, kind: kind, gd: gd}
 	t.Cleanup(b.close)
@@ -179,7 +221,7 @@ func startBrowser(t *testing.T, kind browserKind, prefs map[string]any) *browser
 		t.Fatalf("install add-on: %v", err)
 	}
 	// Wait until the background page has talked to the daemon.
-	waitFor(t, 30*time.Second, "extension connected to the daemon", func() bool {
+	waitFor(t, 30*time.Second, "extension connected to the daemon"+connectHint, func() bool {
 		st := b.popupState()
 		return st != nil && st["daemonUp"] == true
 	})

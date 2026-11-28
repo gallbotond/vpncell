@@ -447,7 +447,7 @@ func TestDownOtherUsersSessions(t *testing.T) {
 	loop := startLoop(t, s.a) // as userAllowed
 	defer loop.stop()
 	waitFor(t, 15*time.Second, "loop ok", func() bool { return loop.okCount() > 0 })
-	r := vc(t, "botond", "down", "--kill", s.a)
+	r := vc(t, browserUser, "down", "--kill", s.a)
 	if r.code == 0 || !loop.alive() {
 		t.Fatalf("a user killed another user's session: %v", r)
 	}
@@ -590,7 +590,8 @@ func TestDesktopPrograms(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: 1000, Gid: 1000, Groups: credsOf("botond").groups}}
+		c := credsOf(browserUser)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: c.uid, Gid: c.gid, Groups: c.groups}}
 		cmd.Env = env
 		cmd.Dir = "/tmp"
 		if err := cmd.Run(); err != nil {
@@ -608,7 +609,8 @@ func TestDesktopPrograms(t *testing.T) {
 }
 
 func desktopEnv() []string {
-	out, err := run("", "sh", "-c", "pgrep -u botond -x gnome-shell | head -1")
+	out, err := run("", "pgrep", "-u", browserUser, "-x", "gnome-shell")
+	out, _, _ = strings.Cut(out, "\n")
 	pid := strings.TrimSpace(out)
 	if err != nil || pid == "" {
 		return nil

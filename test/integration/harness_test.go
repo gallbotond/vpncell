@@ -208,7 +208,7 @@ func setup() error {
 }
 
 func importProfile(name, path string, extra ...string) error {
-	args := append([]string{"import", "--replace", "--user", userAllowed, "--user", "botond"}, extra...)
+	args := append([]string{"import", "--replace", "--user", userAllowed, "--user", browserUser}, extra...)
 	args = append(args, name, path)
 	out, err := run("", cliPath, args...)
 	if err != nil {

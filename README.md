@@ -404,7 +404,12 @@ gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore --object
 ```
 
 That lets any Firefox started by the snap's geckodriver start
-`vpncell-native`; leave it out if you don't run the tests.
+`vpncell-native`; leave it out if you don't run the tests. Portals without
+Ubuntu's per-sub-app patch (upstream xdg-desktop-portal) use
+`snap.firefox` for the geckodriver Firefox too, so there the first grant
+is enough. The browser tests run Firefox as `VPNCELL_TEST_BROWSER_USER`
+(default: the user who ran `sudo`), which needs a running user session
+bus (`/run/user/<uid>/bus`; a desktop login is not needed).
 
 ### Traffic that could bypass the proxy
 

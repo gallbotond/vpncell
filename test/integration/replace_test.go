@@ -77,7 +77,7 @@ func TestImportReplace(t *testing.T) {
 	text := strings.Replace(mustRead(t, prof), `autostart = "on-use"`, `autostart = "manual"`, 1)
 	text = strings.Replace(text, "servers = []", `servers = ["10.99.0.53"]`, 1)
 	text = strings.Replace(text, "search  = []", `search  = ["lab.test"]`, 1)
-	text = strings.Replace(text, "users  = [\""+userAllowed+"\"]", "users  = [\""+userAllowed+"\", \"botond\"]", 1)
+	text = strings.Replace(text, "users  = [\""+userAllowed+"\"]", "users  = [\""+userAllowed+"\", \""+browserUser+"\"]", 1)
 	text = strings.Replace(text, "groups = []", `groups = ["vpncell"]`, 1)
 	text += "\n[status]\nexit_ip_url = \"http://10.99.0.10/\"\n"
 	if err := os.WriteFile(prof, []byte(text), 0o600); err != nil {
@@ -95,7 +95,7 @@ func TestImportReplace(t *testing.T) {
 	for _, want := range []string{
 		`kept from the old profile: autostart = "manual", [access], [dns], [status]`,
 		"removed old files the new config does not use: tls-auth.pem",
-		"allowed users: " + userAllowed + ",botond; groups: vpncell",
+		"allowed users: " + userAllowed + "," + browserUser + "; groups: vpncell",
 	} {
 		if !strings.Contains(r.stdout, want) {
 			t.Errorf("output lacks %q:\n%s", want, r.stdout)
@@ -105,7 +105,7 @@ func TestImportReplace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Autostart != "manual" || !slices.Equal(got.Access.Users, []string{userAllowed, "botond"}) ||
+	if got.Autostart != "manual" || !slices.Equal(got.Access.Users, []string{userAllowed, browserUser}) ||
 		!slices.Equal(got.Access.Groups, []string{"vpncell"}) || !slices.Equal(got.DNS.Servers, []string{"10.99.0.53"}) ||
 		!slices.Equal(got.DNS.Search, []string{"lab.test"}) || got.Status.ExitIPURL != "http://10.99.0.10/" {
 		t.Fatalf("settings not kept:\n%s", mustRead(t, prof))
