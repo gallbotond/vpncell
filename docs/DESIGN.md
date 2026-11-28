@@ -183,8 +183,9 @@ management /run/vpncell/<profile>/mgmt.sock unix
   `ProtectSystem=full`.
 - Status and byte counts come from the management socket (`state on`,
   `bytecount 5`). After a host network change the daemon sends
-  `signal SIGUSR1` so that it reconnects at once; OpenVPN resolves the remote
-  again by itself.
+  `signal SIGUSR1` so that it reconnects at once, but only while OpenVPN's
+  state is `CONNECTED` (§12 item 37); OpenVPN resolves the remote again by
+  itself.
 - **AppArmor:** Ubuntu 26.04 ships no AppArmor profile for `openvpn` (checked:
   nothing in `/etc/apparmor.d`), so nothing blocks the hook. If a profile
   appears later, the package will add a local override, documented in the README.
@@ -781,6 +782,12 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     renamed to `secrets/.<name>.old`, the new one into place, and the
     profile file written; if that fails, the old folder is put back.
     Imports are serialized.
+37. **Reconnect signal only when connected** (#31). After a host network
+    change the OpenVPN backend asks the management socket for `state` and
+    sends `SIGUSR1` only when it is `CONNECTED`. A connecting or waiting
+    openvpn resolves the remote on its next attempt anyway, and a signal
+    during its restart pause started the pause again, so steady host
+    network churn kept it from ever connecting.
 
 ## 13. Lifecycle
 

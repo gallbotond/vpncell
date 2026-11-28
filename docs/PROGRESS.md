@@ -54,6 +54,7 @@ AF_PACKET in the test binary.
 | popup compact and stable | `feat/popup-compact-ui` | [#33](https://github.com/gallbotond/vpncell/pull/33) | merged |
 | follow-up: tests accept the VM's new IPv4 exit | `fix/test-vm-ipv4-egress` | [#43](https://github.com/gallbotond/vpncell/pull/43) | merged |
 | #16 `import --replace` keeps settings, no stale secrets | `fix/import-replace-keeps-settings` | [#44](https://github.com/gallbotond/vpncell/pull/44) | merged |
+| #31 OpenVPN reconnect signal only when connected | `fix/openvpn-signal-only-connected` | [#45](https://github.com/gallbotond/vpncell/pull/45) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -124,6 +125,21 @@ AF_PACKET in the test binary.
   0.9.15. Against 0.9.16 it passes with `TestImportTLSAuthOption`,
   `TestImportSafety*`, `TestReach*`, `TestRemove*`, `TestUpDown`,
   `TestAccessControlExec`.
+
+### #31 (PR #45, package 0.9.17)
+
+- `OnHostNetworkChange` asks openvpn for `state` and sends `SIGUSR1` only
+  when it is `CONNECTED` (the option the issue proposed). DESIGN.md §4.4
+  and §12 item 37.
+- Tests: unit tests against a fake management socket
+  (`TestReconnectOnlyWhenConnected` for CONNECTED, WAIT, RECONNECTING,
+  TCP_CONNECT, AUTH, GET_CONFIG, ASSIGN_IP and no state;
+  `TestReconnectNoManagement`). A host network change cannot be caused in
+  an integration test without changing the host (hard limit). Against
+  0.9.17: `TestUpDown`, `TestIsolationOverlap`, `TestOpenVPNReason*`,
+  `TestDaemonRestartShell`, `TestVMExitIP`, `TestReachVMOpenVPN`,
+  `TestVMOpenVPNConfigAsDownloaded`, `TestFailClosedShell`, `TestPingVM`
+  pass.
 
 ## Issue run (2026-11-26)
 
