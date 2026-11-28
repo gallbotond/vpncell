@@ -5,10 +5,15 @@ Read this first after an interruption. Requirements: `vpncell-build-prompt.md`
 
 ## Current step
 
-**#17 merged (PR #27, 2026-11-26).** Earlier in the day: #8, #9, #10,
-#12, #13, #14 and #15 merged and closed (PRs #20–#26). Still open: #16,
-#18, #19. See "Issue
-run" and "Open items for the user" below.
+**Issue run of 2026-11-28 done.** The open PRs #29 and #33 were merged,
+and every open issue was fixed and merged: #16, #31, #30, #19, #18, #36,
+#37, #34, #35, #38, #39, #40 (PRs #44–#55). Follow-ups found on the way:
+#42 (routes log per connection), #43 (the test VM's new IPv4 exit). No
+open issues or PRs remain. Package 0.9.21 is installed. The full
+integration suite against 0.9.21 had 129 passes; only the 7 known snap
+browser subtests (and their parents) fail. The browser tests with the
+final extension (after #55) pass with the tarball Firefox. See "Issue run
+(2026-11-28)" and "Open items for the user".
 
 ## Steps
 
@@ -467,6 +472,18 @@ have the ping fix; new ones do.
    `sudo vpncell reload`. (I did not touch the profile.)
 7. Issue #12 was closed by its PR; reopen it if you want the remaining
    ideas (session 4, profile 4–6) tracked there.
+8. **GitGuardian incident 41925434** (PR #48,
+   `internal/nmimport/nmimport_test.go`): a made-up test password
+   (`pw-from-nm`) for a fake NetworkManager, never a real secret. The
+   commit was amended before the merge (the test now generates it at
+   runtime), so it is not in `main`; please mark the incident as a false
+   positive / resolved.
+9. **`import --from-nm`** (#18) can rebuild a profile from a working
+   NetworkManager connection, e.g. `sudo vpncell down sonrisa && sudo
+   vpncell import --replace --from-nm sonrisa sonrisa` (keeps its settings,
+   #16). I did not touch your profiles. While both are active, `vpncell
+   status` now warns when NetworkManager's `sonrisa` and the vpncell
+   profile use the same certificate (#19).
 
 ## Final report
 
