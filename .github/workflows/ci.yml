@@ -1,0 +1,72 @@
+# CI for pull requests and main (issue #67). No secrets: `make itest` needs
+# root, the test VM and .env, so it stays on the developer's host.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  linux:
+    name: linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Cache extension/node_modules
+        uses: actions/cache@v4
+        with:
+          path: extension/node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('extension/package-lock.json') }}
+      - run: make build
+      - run: make test
+
+  cross-compile:
+    name: cross-compile
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+      # Packages that must build on Windows and macOS. The portability
+      # refactor (#68) adds to these lists. BUILD is built for each target;
+      # VET is also vetted, which compiles the tests too, so a package is in
+      # VET only once its tests build on every target.
+      BUILD: >-
+        ./internal/brand
+        ./internal/conflict
+        ./internal/dnsfiles
+        ./internal/nmimport
+        ./internal/reach
+      VET: >-
+        ./internal/brand
+        ./internal/conflict
+        ./internal/dnsfiles
+        ./internal/reach
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: go build and go vet for windows and darwin
+        run: |
+          set -eu
+          for target in windows/amd64 windows/arm64 darwin/amd64 darwin/arm64; do
+            echo "::group::$target"
+            GOOS=${target%/*} GOARCH=${target#*/} go build $BUILD
+            GOOS=${target%/*} GOARCH=${target#*/} go vet $VET
+            echo "::endgroup::"
+          done
