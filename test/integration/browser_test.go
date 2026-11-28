@@ -109,7 +109,7 @@ func TestBrowserContainers(t *testing.T) {
 			c := b.createContainer("vc-" + p)
 			b.mapContainer(c, p)
 			r := b.load(c, false, "https://ifconfig.me/ip", 30*time.Second)
-			if !r.ok || strings.TrimSpace(r.text) != vmEndpoint {
+			if !r.ok || !isVMExit(t, r.text) {
 				t.Errorf("%s exit IP in container: %+v", p, r)
 			}
 			b.removeContainer(c)

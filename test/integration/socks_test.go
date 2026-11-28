@@ -471,7 +471,7 @@ func TestVMSocks(t *testing.T) {
 			mk := marker()
 			cap := startCapture(t)
 			body, err := socksGet(info, "https://ifconfig.me/ip", 20*time.Second)
-			if err != nil || strings.TrimSpace(body) != vmEndpoint {
+			if err != nil || !isVMExit(t, body) {
 				t.Errorf("exit IP via SOCKS: %q %v", body, err)
 			}
 			body, err = socksGet(info, "http://whoami.vpn-lab.test/", 10*time.Second)
