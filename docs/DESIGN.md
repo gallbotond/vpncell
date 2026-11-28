@@ -1018,6 +1018,85 @@ Plus unit tests and fuzzing for the importers, protocol framing and SOCKS
 parsing, and an extension unit test for the decision function
 (mapped/unmapped/default/private/daemon down/exception).
 
+### 15.5 Test lab for the next backends (planned 2026-11-28)
+
+The next backends are OpenConnect, Cisco AnyConnect first (#58, with
+interactive logins in #59), then IPsec IKEv2 with strongSwan (#60). See
+DECISIONS.md "Next backends". This section plans how to test them against
+real servers, not against assumptions.
+
+**Principle.** The part vpncell owns is the same for every vendor: moving
+the tun or XFRM interface into the namespace, the hook's environment,
+addresses, routes and DNS, the login and cookie handoff, reconnects, daemon
+restarts and leaks. Free, self-hosted servers test all of that: **ocserv**
+(AnyConnect-compatible) and **strongSwan**/**libreswan** (IKEv2). Vendor
+differences (login forms, GlobalProtect's portal and gateway steps) live
+inside `openconnect` and `charon`. Vendor appliances only check interop,
+so they are optional.
+
+**Where each piece runs:**
+
+| Place | What runs there | Limits |
+|---|---|---|
+| Local lab (this host, namespaces, §15.1) | 2 × ocserv 1.3, ocserv 1.6 + Dex for SSO, 2 × strongSwan, 1 × libreswan, optional FreeRADIUS | No Docker or libvirt networks and no nested VMs on this host; only the lab's test veths. Host routing, `ip rule`s and firewall stay unchanged. Lab SAs and policies live in lab namespaces. |
+| Test VM `free-vm` (gcloud e2-micro, Docker) | 1 × ocserv, 1 × strongSwan, next to wg-easy and OpenVPN | 1 GB RAM, about 440 MB free on 2026-11-28, no `/dev/kvm`: small containers only (limit about 64 MB each). Gives the real IPv6 internet path, exit IP and leak captures. Changes follow the VM rules (backups, README note). |
+| Homelab (Proxmox), created by the user | Keycloak, Cisco ASAv, Windows Server RRAS (#63) | Reached over the LAN from this host. Interop only; nothing in `make itest` depends on them. |
+| Larger gcloud VM, on demand (#64) | Pay-as-you-go FortiGate or Palo Alto VM-Series | Only for checks the homelab cannot do, because the vendor's free option does not allow them. The user decides each time; create, test and delete the same day. |
+
+**Shopping list: software.** Versions are what Ubuntu 26.04 has on
+2026-11-28, unless the row says otherwise.
+
+| Software | Where | Source | License | Why |
+|---|---|---|---|---|
+| openconnect 9.12 | this host (client) | Ubuntu universe | LGPL-2.1 | The client: `--authenticate`, `--cookie-on-stdin`, `--external-browser`, `--script`. Debian has 9.21; move only if 9.12 lacks something. |
+| ocserv 1.3.0 | local lab, `free-vm` | Ubuntu universe; Debian 12 container on the VM | GPL-2.0 | AnyConnect server: password, certificate, TOTP, RADIUS, DTLS, IPv6. |
+| ocserv ≥ 1.6.0 | local lab | Pinned source tarball, built into a test directory | GPL-2.0 | OIDC browser mode (`auth = oidc[mode=browser]`) for SSO tests; added in 1.6.0 (2026-10-16), needs GnuTLS ≥ 3.8.2 (Ubuntu: 3.8.12). |
+| Dex | local lab | `go install` at a pinned version | Apache-2.0 | Small OIDC provider with static test users for automated SSO tests. |
+| oathtool 2.6.14 | test harness | Ubuntu | GPL-3.0 | TOTP codes for OTP tests. |
+| strongSwan 6.0.4: `charon-systemd`, `strongswan-swanctl`, `libcharon-extra-plugins` | this host (client), local lab | Ubuntu universe | GPL-2.0+ | IKEv2 client and responders, EAP methods, XFRM interfaces. |
+| strongSwan | `free-vm` | Debian 12 container | GPL-2.0+ | IKEv2 responder on the real internet path. |
+| libreswan 5.2 | local lab | Ubuntu | GPL-2.0 | Second IKEv2 implementation for interop. |
+| FreeRADIUS 3.2.8 (optional) | local lab | Ubuntu | GPL-2.0 | RADIUS behind ocserv and EAP-RADIUS behind strongSwan. |
+| Keycloak (optional) | homelab VM | Upstream release | Apache-2.0 | Realistic SSO with TOTP MFA, SAML for the ASAv. |
+
+**Shopping list: VMs.**
+
+| VM | Where | Size | For | Needed? |
+|---|---|---|---|---|
+| `free-vm` (existing) | gcloud | e2-micro, unchanged | ocserv + strongSwan containers (#61, #62) | yes |
+| `lab-idp` | homelab | 2 vCPU, 2–4 GB RAM, 10 GB, Debian 13 | Keycloak: SSO + MFA, SAML for the ASAv | recommended |
+| `cisco-asav` | homelab | 1 vCPU, 2 GB RAM, 8 GB (qcow2) | Real AnyConnect headend: Cisco login forms, DTLS, SAML | optional; needs a Cisco account with download rights; 100 kbps without a license, AnyConnect sessions without a license uncertain |
+| `win-ikev2` | homelab | 2 vCPU, 4 GB RAM, 40 GB | Windows Server 2025 evaluation (180 days, free) with RRAS: IKEv2 interop | optional |
+| FortiGate pay-as-you-go | gcloud, on demand | about 2 vCPU / 4 GB | Fortinet IKEv2 dial-up interop | only if a user asks |
+| Palo Alto VM-Series pay-as-you-go | gcloud, on demand | at least 2 vCPU / 6.5 GB | GlobalProtect interop | only if a user asks |
+
+**Not on the list:** FortiGate-VM's free trial (low encryption only:
+neither SSL VPN nor AES IPsec works, so it tests nothing useful); Ivanti
+Connect Secure and F5 BIG-IP (trial only through sales, for existing
+customers, or a paid lab license); Cisco's own Linux client (cannot run
+per namespace, see #58).
+
+**Real-world check.** Before an OpenConnect release, one run against a real
+Cisco ASA or FTD gateway of a volunteer user.
+
+### 15.6 Tests for the next backends
+
+| Backend | Test | How |
+|---|---|---|
+| Both | Isolation and overlap | New profiles together with WireGuard and OpenVPN profiles on `10.99.0.0/24`; each sees its own server. |
+| Both | Host unchanged | `ip rule`, `ip route show table all` and `nft list ruleset` in the host namespace are the same before, during and after; for IKEv2 also `ip xfrm policy` holds only policies with the profile's `if_id`. |
+| Both | Leaks | Capture as in §15.3: to the gateway only TCP/UDP 443 (OpenConnect) or UDP 500/4500 or ESP (IKEv2); test markers never outside the tunnel. |
+| Both | Daemon restart | Restart and `kill -9` of `vpncelld` during traffic; the tunnel stays, the daemon adopts it. |
+| OpenConnect | Hook | The tun is moved into the namespace and stays there across reconnects; IPv4 and IPv6 addresses, split include and exclude routes, pushed DNS and search domain. |
+| OpenConnect | Transport | DTLS; with UDP 443 blocked in the lab, fallback to TLS only. |
+| OpenConnect | Logins | Certificate; password file; password + TOTP (`oathtool`); SSO against ocserv 1.6 + Dex with a scripted browser. The cookie never appears in `ps`, the journal or `/run/vpncell`. |
+| OpenConnect | Login needed | Expired or refused cookie: the profile goes to "login needed", stays fail-closed, and `vpncell status` and the popup show it. |
+| IKEv2 | XFRM interface | The interface is in the profile namespace; from inside it, `ip xfrm state` shows nothing and no key material is readable. |
+| IKEv2 | Configuration payload | Virtual IP, DNS and routes applied in the namespace by vpncell; charon installs no routes, rules or virtual IPs on the host. |
+| IKEv2 | Auth | Certificates, PSK, EAP-MSCHAPv2, EAP-TLS. |
+| IKEv2 | Network | NAT-T through a lab NAT; rekey; DPD; host network change. |
+| IKEv2 | Interop | libreswan responder; optionally Windows RRAS on the homelab. |
+
 ## 16. Open risks
 
 1. **Snap Firefox native messaging.** Depends on Ubuntu's WebExtensions

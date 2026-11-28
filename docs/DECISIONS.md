@@ -170,3 +170,17 @@ Decided by the build session (the issue left the choice open; DESIGN.md
 - The list of binaries treated this way is `platform.CapabilityBinaries`
   (only `ping` today; programs that really need raw sockets, such as
   `arping`, stay unusable in a profile).
+
+## Next backends (2026-11-28)
+
+- **Order:** OpenConnect first, starting with Cisco AnyConnect / Secure
+  Client (#58), with interactive logins (SSO, password + OTP, #59). Then
+  IPsec IKEv2 with strongSwan and XFRM interfaces (#60).
+- **Deferred:** legacy Cisco IPsec (IKEv1 + XAuth, `vpnc`, `.pcf` files).
+  Fortinet SSL VPN gets no special effort: Fortinet removed SSL VPN tunnel
+  mode in FortiOS 7.6.3, and its users move to IKEv2.
+- **Test environments** (DESIGN.md §15.5): free, self-hosted servers in
+  the local lab and on `free-vm` (#61, #62). Heavier interop VMs go on the
+  user's homelab (Proxmox, #63). A larger gcloud VM only for checks the
+  homelab cannot do, on demand and with the user's decision each time
+  (#64).
