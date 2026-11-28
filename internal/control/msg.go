@@ -50,6 +50,9 @@ type ImportRequest struct {
 	Users     []string          `json:"users,omitempty"`
 	Groups    []string          `json:"groups,omitempty"`
 	Autostart string            `json:"autostart,omitempty"`
+	// DefaultUser is allowed on a new profile when Users and Groups are
+	// empty ($SUDO_USER). A replaced profile keeps its [access] instead.
+	DefaultUser string `json:"default_user,omitempty"`
 }
 
 // Response is the envelope of every reply and event.
@@ -199,6 +202,14 @@ type ImportReport struct {
 	Kept     []string `json:"kept"`
 	Stripped []string `json:"stripped"`
 	Warnings []string `json:"warnings,omitempty"`
+	// With --replace (issue #16): settings taken over from the old profile,
+	// e.g. `autostart = "boot"`, `[access]`; and old secret files that the
+	// new config does not use and were deleted.
+	KeptSettings []string `json:"kept_settings,omitempty"`
+	RemovedFiles []string `json:"removed_files,omitempty"`
+	// Access of the written profile.
+	Users  []string `json:"users,omitempty"`
+	Groups []string `json:"groups,omitempty"`
 }
 
 type Event struct {

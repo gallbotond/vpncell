@@ -772,6 +772,15 @@ idle timeouts. The SOCKS credentials are the only secret ever sent to a client.
     sessions run and is deleted after the last one exits. At daemon start,
     a namespace without a profile has its OpenVPN unit stopped and its
     links deleted.
+36. **`import --replace` keeps settings** (#16). The daemon parses the old
+    profile and carries over `autostart`, `[access]`, `[dns]` (same
+    backend only), `[routing]`, `[socks]`, `[status]` and `[security]`
+    unless the request sets them; the CLI sends `$SUDO_USER` as a default
+    for new profiles only. Secrets are written to
+    `secrets/.<name>.new`, the profile is validated, the old folder is
+    renamed to `secrets/.<name>.old`, the new one into place, and the
+    profile file written; if that fails, the old folder is put back.
+    Imports are serialized.
 
 ## 13. Lifecycle
 

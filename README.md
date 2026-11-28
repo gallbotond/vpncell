@@ -143,6 +143,27 @@ A profile reaches only what is behind its tunnel: never the host's
 `localhost`, the systemd-resolved stub or the LAN. There is no setting to
 allow that.
 
+### Updating a profile's config
+
+```bash
+sudo vpncell down work
+sudo vpncell import --replace work ~/Downloads/work-new.ovpn
+```
+
+`--replace` changes the profile's **config** (keys, certificates, server)
+and keeps its settings: `autostart`, `[access]`, `[dns]`, `[routing]`,
+`[socks]`, `[status]` and `[security]` stay as they were, unless a flag
+says otherwise (`--user`/`--group` replace `[access]`, `--autostart`
+replaces `autostart`). The output lists what was kept. `[dns]` is kept
+only when the backend stays the same; if the new config's DNS differs, a
+warning shows both. Comments in the old file are not kept.
+
+Afterwards `/etc/vpncell/secrets/work/` holds exactly the files the new
+config uses; old ones (for example a `tls-auth.pem` after switching to
+tls-crypt) are deleted and listed. The new files are written to a staging
+folder first and swapped in only when the new profile file is written, so
+a failed `--replace` leaves the old profile as it was.
+
 ### Removing a profile
 
 ```bash
@@ -174,7 +195,7 @@ running with the old settings, and `journalctl -u vpncelld` shows the error.
 | `vpncell up <profile>` / `down [--force\|--kill] <profile>` | bring a profile up or down (for OpenVPN, `up` exits with 3 if the tunnel is not connected after its 20 s wait; see "When an OpenVPN profile does not connect") |
 | `vpncell shell <profile>` | your shell inside the profile |
 | `vpncell run [-t\|-T] <profile> -- <cmd>...` | one command inside the profile |
-| `sudo vpncell import [--user u] [--group g] <name> <file>` | import a `wg-quick` or `.ovpn` config |
+| `sudo vpncell import [--user u] [--group g] [--replace] <name> <file>` | import a `wg-quick` or `.ovpn` config (`--replace`: new config, same settings; see "Updating a profile's config") |
 | `sudo vpncell remove [--force\|--kill] <profile>` | take a profile down and delete its profile file and `/etc/vpncell/secrets/<name>/` (see "Removing a profile") |
 | `sudo vpncell reload` | re-read `/etc/vpncell/profiles.d` |
 

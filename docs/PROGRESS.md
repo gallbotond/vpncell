@@ -53,6 +53,7 @@ AF_PACKET in the test binary.
 | follow-up: `tunnel routes` logged on every connection | `fix/routes-log-per-connection` | [#42](https://github.com/gallbotond/vpncell/pull/42) | merged |
 | popup compact and stable | `feat/popup-compact-ui` | [#33](https://github.com/gallbotond/vpncell/pull/33) | merged |
 | follow-up: tests accept the VM's new IPv4 exit | `fix/test-vm-ipv4-egress` | [#43](https://github.com/gallbotond/vpncell/pull/43) | merged |
+| #16 `import --replace` keeps settings, no stale secrets | `fix/import-replace-keeps-settings` | [#44](https://github.com/gallbotond/vpncell/pull/44) | merged |
 
 ### PR #29 (package 0.9.14)
 
@@ -103,6 +104,26 @@ AF_PACKET in the test binary.
   is learned with `curl -4` through `vm-wg` and must differ from the host's
   own IPv4 exit. DESIGN.md §15.1 notes the change. Against 0.9.15:
   `TestBrowserContainers/tarball`, `TestVMSocks`, `TestVMExitIP` pass.
+
+### #16 (PR #44, package 0.9.16)
+
+- `import --replace` keeps `autostart`, `[access]`, `[dns]` (same backend
+  only; a warning shows both when the new config's DNS differs),
+  `[routing]`, `[socks]`, `[status]`, `[security]` unless a flag is
+  given; the CLI no longer turns `$SUDO_USER` into an explicit `--user`
+  (sent as `default_user`, used for new profiles). Output lists kept
+  settings and removed files. Old comments are not kept (the file is
+  regenerated from the parsed values; chosen over text editing).
+- Secrets are staged in `secrets/.NAME.new` and swapped in after the
+  profile validates; if writing the profile file fails, the old folder is
+  restored. `WriteAtomic` now removes its temp file when the rename fails.
+- Tests: unit tests `TestProfileText*`, `TestSwapSecrets`; integration
+  `TestImportReplace` (lab OpenVPN, `t-repl`: kept settings, `tls-auth.pem`
+  removed, `--autostart` wins, `chattr +i` on the profile file makes the
+  replace fail and the old profile still connects). It failed against
+  0.9.15. Against 0.9.16 it passes with `TestImportTLSAuthOption`,
+  `TestImportSafety*`, `TestReach*`, `TestRemove*`, `TestUpDown`,
+  `TestAccessControlExec`.
 
 ## Issue run (2026-11-26)
 
