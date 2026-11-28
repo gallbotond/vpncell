@@ -65,32 +65,37 @@ func (d *Daemon) cleanupOpenVPNUnits() {
 	}
 }
 
-func (d *Daemon) importOpenVPN(req *control.ImportRequest, dir string) (string, *importer.Report, error) {
+// importOpenVPN writes the sanitized config and its files into stage; the
+// config refers to them under dir, where they will be after the swap.
+func (d *Daemon) importOpenVPN(req *control.ImportRequest, stage, dir string) (imported, *importer.Report, error) {
 	cfg, rep, err := importer.ParseOpenVPN(req.Config, req.Files, req.AuthFile)
 	if err != nil {
-		return "", rep, err
+		return imported{}, rep, err
 	}
-	if err := writeSecretDir(dir); err != nil {
-		return "", nil, err
+	if err := writeSecretDir(stage); err != nil {
+		return imported{}, nil, err
 	}
 	for _, name := range cfg.FileNames() {
-		if err := dnsfiles.WriteAtomic(filepath.Join(dir, name+".pem"), cfg.Files[name], 0o600); err != nil {
-			return "", nil, err
+		if err := dnsfiles.WriteAtomic(filepath.Join(stage, name+".pem"), cfg.Files[name], 0o600); err != nil {
+			return imported{}, nil, err
 		}
 	}
 	if cfg.AuthUser != "" {
-		if err := dnsfiles.WriteAtomic(filepath.Join(dir, "auth.txt"), cfg.AuthUser+"\n"+cfg.AuthPass+"\n", 0o600); err != nil {
-			return "", nil, err
+		if err := dnsfiles.WriteAtomic(filepath.Join(stage, "auth.txt"), cfg.AuthUser+"\n"+cfg.AuthPass+"\n", 0o600); err != nil {
+			return imported{}, nil, err
 		}
 	}
-	path := filepath.Join(dir, "client.ovpn")
-	if err := dnsfiles.WriteAtomic(path, cfg.Render(dir), 0o600); err != nil {
-		return "", nil, err
+	if err := dnsfiles.WriteAtomic(filepath.Join(stage, "client.ovpn"), cfg.Render(dir), 0o600); err != nil {
+		return imported{}, nil, err
 	}
-	body := fmt.Sprintf("backend   = \"openvpn\"\n\n[openvpn]\nconfig = %s\n\n[dns]\nservers = []\nsearch  = []\nuse_pushed = true\n", tomlString(path))
+	usePushed := true
 	rep.Warnings = append(rep.Warnings, "DNS servers come from the server's pushes (dns.use_pushed = true); add [dns] servers if it pushes none")
 	rep.Warnings = append(rep.Warnings, cfg.ReachWarnings()...)
-	return body, rep, nil
+	return imported{
+		backend: profile.BackendOpenVPN,
+		section: fmt.Sprintf("[openvpn]\nconfig = %s\n", tomlString(filepath.Join(dir, "client.ovpn"))),
+		dns:     dnsSettings{Servers: []string{}, Search: []string{}, UsePushed: &usePushed},
+	}, rep, nil
 }
 
 // writeProfileDNS is used by the OpenVPN hook (a separate process) to

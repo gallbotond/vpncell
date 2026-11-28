@@ -493,11 +493,11 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 func cmdImport(args []string) error {
 	fs := flag.NewFlagSet("import", flag.ContinueOnError)
 	var users, groups multi
-	fs.Var(&users, "user", "user allowed to use the profile (repeatable; default: $SUDO_USER)")
+	fs.Var(&users, "user", "user allowed to use the profile (repeatable; default: $SUDO_USER, or the replaced profile's [access])")
 	fs.Var(&groups, "group", "group allowed to use the profile (repeatable)")
 	authFile := fs.String("auth-file", "", "OpenVPN username/password file (two lines)")
-	autostart := fs.String("autostart", "", "boot, on-use (default) or manual")
-	replace := fs.Bool("replace", false, "replace an existing profile (it must be down)")
+	autostart := fs.String("autostart", "", "boot, on-use (default) or manual; --replace keeps the old value by default")
+	replace := fs.Bool("replace", false, "replace an existing profile's config (it must be down); its settings are kept unless a flag says otherwise")
 	tlsAuth := fs.Bool("tls-auth", false, "OpenVPN: use the config's tls-crypt key as tls-auth with key-direction 1 (only for servers that use tls-auth; README \"OpenVPN profiles\")")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -509,16 +509,16 @@ func cmdImport(args []string) error {
 		return fmt.Errorf("import needs root: sudo vpncell import ...")
 	}
 	name, path := fs.Arg(0), fs.Arg(1)
-	if len(users) == 0 && len(groups) == 0 {
-		if su := os.Getenv("SUDO_USER"); su != "" && su != "root" {
-			users = append(users, su)
-		}
-	}
 	req, err := buildImport(name, path, *authFile, *tlsAuth)
 	if err != nil {
 		return err
 	}
 	req.Users, req.Groups, req.Autostart, req.Replace = users, groups, *autostart, *replace
+	// Allowed on a new profile when no --user/--group is given; a replaced
+	// profile keeps its [access] instead (issue #16).
+	if su := os.Getenv("SUDO_USER"); su != "" && su != "root" {
+		req.DefaultUser = su
+	}
 	r, err := client.Call(control.Request{Type: "import", Import: req})
 	if err != nil {
 		return err
@@ -540,8 +540,14 @@ func cmdImport(args []string) error {
 	for _, w := range rep.Warnings {
 		fmt.Println("warning: " + w)
 	}
-	if len(users) > 0 || len(groups) > 0 {
-		fmt.Printf("allowed users: %s; groups: %s\n", strings.Join(users, ","), strings.Join(groups, ","))
+	if len(rep.KeptSettings) > 0 {
+		fmt.Println("kept from the old profile: " + strings.Join(rep.KeptSettings, ", "))
+	}
+	if len(rep.RemovedFiles) > 0 {
+		fmt.Println("removed old files the new config does not use: " + strings.Join(rep.RemovedFiles, ", "))
+	}
+	if len(rep.Users) > 0 || len(rep.Groups) > 0 {
+		fmt.Printf("allowed users: %s; groups: %s\n", strings.Join(rep.Users, ","), strings.Join(rep.Groups, ","))
 	} else {
 		fmt.Println("warning: no users or groups are allowed yet; edit [access] in the profile, then run: sudo vpncell reload")
 	}
