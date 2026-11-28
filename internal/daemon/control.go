@@ -317,6 +317,7 @@ func (d *Daemon) profileStatus(c *caller, p *profile.Profile) control.ProfileSta
 	}
 	if ps.State != backend.StateDown {
 		describeReach(&ps, p, st, servers)
+		ps.Warnings = identityWarnings(p, false)
 	}
 	ps.SocksPort = d.socksPort(p)
 	ps.Sessions = d.redactSessions(c, d.sessions.list(p.Name))

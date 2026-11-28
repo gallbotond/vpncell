@@ -149,7 +149,11 @@ func TestImportReplace(t *testing.T) {
 			t.Errorf("left over: %v", m)
 		}
 	}
-	// The old profile still connects.
+	// The old profile still connects. t-ovpn1 uses the same client
+	// certificate, and the lab server keeps one connection per certificate
+	// (issue #19): take it down, or its connection is dropped and later
+	// tests find it broken.
+	ensureDown(t, "t-ovpn1")
 	ensureUp(t, p)
 	waitFor(t, 30*time.Second, p+" up", func() bool { return statusOf(t, p).State == "up" })
 	if r := inProfile(t, userAllowed, p, "curl", "-sS", "-m", "10", "http://10.99.0.10/"); r.code != 0 || !strings.Contains(r.stdout, "lab-server ovpn1<") {

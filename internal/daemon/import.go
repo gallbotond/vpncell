@@ -208,6 +208,9 @@ func (d *Daemon) handleImport(req *control.ImportRequest) (*control.Response, er
 		return nil, err
 	}
 	d.loadProfiles()
+	if np, err := profile.Parse(req.Name, []byte(full)); err == nil {
+		warnings = append(warnings, identityWarnings(np, true)...)
+	}
 	d.log.Info("profile imported", "profile", req.Name, "kind", req.Kind, "replace", old != nil || oldErr != nil)
 	return &control.Response{Type: "ok", Report: &control.ImportReport{
 		Profile: req.Name, Kept: rep.Kept, Stripped: rep.Stripped, Warnings: append(rep.Warnings, warnings...),

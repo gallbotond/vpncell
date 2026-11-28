@@ -149,6 +149,9 @@ type ProfileStatus struct {
 	Addresses      []string      `json:"addresses,omitempty"`
 	DNS            []string      `json:"dns,omitempty"`
 	Sessions       []SessionInfo `json:"sessions"`
+	// Connections outside vpncell that use the same client identity
+	// (issue #19); not while the profile is down.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type SessionInfo struct {
